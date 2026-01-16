@@ -37,7 +37,7 @@ decode:
     modelCommand: vllmServe
     args:
       - "--block-size"
-      - "128"
+      - "64"
       - "--kv-transfer-config"
       - '{"kv_connector":"NixlConnector", "kv_role":"kv_both", "kv_buffer_device":"cpu"}'
       - "--disable-log-requests"
@@ -95,7 +95,7 @@ prefill:
     modelCommand: vllmServe
     args:
       - "--block-size"
-      - "128"
+      - "64"
       - "--kv-transfer-config"
       - '{"kv_connector":"NixlConnector", "kv_role":"kv_both", "kv_buffer_device":"cpu"}'
       - "--disable-log-requests"
