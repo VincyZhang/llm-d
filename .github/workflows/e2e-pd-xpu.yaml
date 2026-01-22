@@ -102,9 +102,16 @@ jobs:
         run: |
           CUSTOM_TAG="${{ inputs.custom_image_tag }}"
           if [ -n "${CUSTOM_TAG}" ]; then
-            echo "Using custom image tag: ${CUSTOM_TAG}"
+            # Check if it's a full image address (contains '/') or just a tag
+            if [[ "${CUSTOM_TAG}" == *"/"* ]]; then
+              echo "Using custom full image address: ${CUSTOM_TAG}"
+              FULL_IMAGE="${CUSTOM_TAG}"
+            else
+              echo "Using custom image tag: ${CUSTOM_TAG}"
+              FULL_IMAGE="ghcr.io/${{ github.repository }}-xpu-dev:${CUSTOM_TAG}"
+            fi
             echo "IMAGE_TAG=${CUSTOM_TAG}" >> $GITHUB_ENV
-            echo "HELM_SET_IMAGE=--set decode.containers[0].image=ghcr.io/${{ github.repository }}-xpu-dev:${CUSTOM_TAG} --set decode.containers[0].imagePullPolicy=Always --set prefill.containers[0].image=ghcr.io/${{ github.repository }}-xpu-dev:${CUSTOM_TAG} --set prefill.containers[0].imagePullPolicy=Always" >> $GITHUB_ENV
+            echo "HELM_SET_IMAGE=--set decode.containers[0].image=${FULL_IMAGE} --set decode.containers[0].imagePullPolicy=Always --set prefill.containers[0].image=${FULL_IMAGE} --set prefill.containers[0].imagePullPolicy=Always" >> $GITHUB_ENV
           else
             echo "Using default image tag from values file"
             echo "HELM_SET_IMAGE=" >> $GITHUB_ENV
