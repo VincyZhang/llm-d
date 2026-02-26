@@ -3,225 +3,197 @@
 
 multinode: false
 
-# Configure accelerator type for Intel XPU via DRA
-dra:
-  enabled: true
+# Configure accelerator type for Intel XPU
+accelerator:
   type: intel
+  resources:
+    intel: "gpu.intel.com/xe"  # Add gpu.intel.com/xe
+
 
 modelArtifacts:
   uri: "hf://Qwen/Qwen3-0.6B"
   size: 10Gi  # Smaller model size for Intel XPU
   authSecretName: "llm-d-hf-token"
   name: "Qwen/Qwen3-0.6B"
-  labels:
-    llm-d.ai/inference-serving: "true"
-    llm-d.ai/guide: "pd-disaggregation"
-    llm-d.ai/hardware-vairant: "xpu"
-    llm-d.ai/hardware-vendor: "intel"
-    llm-d.ai/model: "Qwen/Qwen3-0.6B"
 
 routing:
-  servicePort: 8000
+  servicePort: 8000 # net host conflict resolve
   proxy:
-    image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.5.0
+    image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.3.0
     connector: nixlv2
     secure: false
 
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+
+  inferencePool:
+    create: false
+  # create httpRoute via MS for using release name xpu-pd override
+  httpRoute:
+    create: true
+  epp:
+    create: false
 decode:
-  parallelism:  # controlls count of specialized hardware devices allocated
-    tensor: 1
+  create: true
+  replicas: 1
+
+  monitoring:
+    podmonitor:
+      enabled: true
+      portName: "vllm" # decode vLLM service port (from routing.proxy.targetPort)
+      path: "/metrics"
+      interval: "30s"
+  containers:
+  - name: "vllm"
+    image: amr-registry.caas.intel.com/aiops/catalog/intel-vllm:wenxin-test-2 
+    modelCommand: vllmServe
+    args:
+      - "--block-size"
+      - "128"
+      - "--kv-transfer-config"
+      - '{"kv_connector":"NixlConnector", "kv_role":"kv_both", "kv_buffer_device":"xpu"}' # change the kv_buffer_device xpu/cpu w/o gdr
+      - "--disable-log-requests"
+      - "--disable-uvicorn-access-log"
+      - "--max-model-len"
+      - "32000"
+      - "--no-enable-prefix-caching"
+    securityContext:
+      privileged: true
+      runAsUser: 0
+      runAsGroup: 0
+      # fsGroup: 107
+      capabilities:
+        add: ["IPC_LOCK","SYS_PTRACE","SYS_ADMIN","SYS_RAWIO"]
+    env:
+      - name: UCX_TLS
+        value: "ib,rc,ze_copy" # verbs: "ib,rc,ze_copy" IPC: "ze_ipc,ze_copy,tcp" # tcp only "tcp"
+      - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
+      - name: VLLM_NIXL_SIDE_CHANNEL_PORT
+        value: "5587"
+      - name: UCX_MEMTYPE_CACHE
+        value: "0"
+      - name: UCX_NET_DEVICES
+        value: "mlx5_0:1,mlx5_1:1,mlx5_2:1,mlx5_3:1"
+      - name: ZE_AFFINITY_MASK
+        value: "2"
+      - name: VLLM_LOGGING_LEVEL
+        value: "DEBUG"
+    ports:
+      - containerPort: 8200
+        name: metrics
+        protocol: TCP
+    resources:
+      limits:
+        memory: 64Gi
+        cpu: "16"
+        gpu.intel.com/xe: 1  # Change from gpu.intel.com/i915 to gpu.intel.com/xe
+        # rdma/hca_shared_devices_a: 1
+      requests:
+        memory: 64Gi
+        cpu: "16"
+        gpu.intel.com/xe: 1  # Change from gpu.intel.com/i915 to gpu.intel.com/xe
+        # rdma/hca_shared_devices_a: 1
+    mountModelVolume: true
+    volumeMounts:
+      - name: dshm
+        mountPath: /dev/shm
+      - name: driver
+        mountPath: /dev/dri
+    lifecycle:
+      postStart:
+        exec:
+          command: ["sh", "-c", "ulimit -n 65535; ulimit -l unlimited"]
+  volumes:
+    - name: dshm
+      emptyDir:
+        medium: Memory
+        sizeLimit: 4Gi
+    - name: driver
+      hostPath:
+        path: /dev/dri
+
+prefill:
   create: true
   replicas: 1
   monitoring:
     podmonitor:
       enabled: true
-      portName: "vllm"  # decode vLLM service port (from routing.proxy.targetPort)
+      portName: "vllm" # prefill vLLM service port (from routing.servicePort)
       path: "/metrics"
       interval: "30s"
   containers:
-    - name: "vllm"
-      image: ghcr.io/llm-d/llm-d-xpu-dev:pr-592
-      modelCommand: vllmServe
-      args:
-        - "--block-size"
-        - "64"
-        - "--kv-transfer-config"
-        - '{"kv_connector":"NixlConnector", "kv_role":"kv_both", "kv_buffer_device":"cpu"}'
-        - "--disable-log-requests"
-        - "--disable-uvicorn-access-log"
-        - "--max-model-len"
-        - "32000"
-      securityContext:
-        fsGroup: 107
-        supplementalGroups:
-          - 107
-      env:
-        - name: UCX_TLS
-          value: "tcp"
-        - name: VLLM_NIXL_SIDE_CHANNEL_HOST
-          valueFrom:
-            fieldRef:
-              fieldPath: status.podIP
-        - name: VLLM_NIXL_SIDE_CHANNEL_PORT
-          value: "5600"
-        # Intel XPU environment variables (required after switching to DRA)
-        - name: VLLM_USE_V1
-          value: "1"
-        - name: TORCH_LLM_ALLREDUCE
-          value: "1"
-        - name: VLLM_WORKER_MULTIPROC_METHOD
-          value: "spawn"
-      ports:
-        - containerPort: 8200
-          name: vllm
-          protocol: TCP
-        - containerPort: 5600
-          name: nixl
-          protocol: TCP
-      resources:
-        limits:
-          memory: 64Gi
-          cpu: "16"
-          # note: XPU resources get controlled by parallelism + accelerators above
-        requests:
-          memory: 64Gi
-          cpu: "16"
-          # note: XPU resources get controlled by parallelism + accelerators above
-      mountModelVolume: true
-      volumeMounts:
-        - name: metrics-volume
-          mountPath: /.config
-        - name: shm
-          mountPath: /dev/shm
-        - name: torch-compile-cache
-          mountPath: /.cache
-      startupProbe:
-        httpGet:
-          path: /v1/models
-          port: vllm
-        initialDelaySeconds: 30
-        periodSeconds: 30
-        timeoutSeconds: 10
-        failureThreshold: 60
-      livenessProbe:
-        httpGet:
-          path: /health
-          port: vllm
-        periodSeconds: 30
-        timeoutSeconds: 10
-        failureThreshold: 20
-      readinessProbe:
-        httpGet:
-          path: /v1/models
-          port: vllm
-        periodSeconds: 10
-        timeoutSeconds: 5
-        failureThreshold: 6
-  volumes:
-    - name: metrics-volume
-      emptyDir: {}
-    - name: shm
-      emptyDir:
-        medium: Memory
-        sizeLimit: "16Gi"
-    - name: torch-compile-cache
-      emptyDir: {}
+  - name: "vllm"
 
-prefill:
-  parallelism:
-    tensor: 1
-  create: true
-  replicas: 3
-  monitoring:
-    podmonitor:
-      enabled: true
-      portName: "vllm"  # prefill vLLM service port (from routing.servicePort)
-      path: "/metrics"
-      interval: "30s"
-  containers:
-    - name: "vllm"
-      image: ghcr.io/llm-d/llm-d-xpu-dev:pr-592
-      modelCommand: vllmServe
-      args:
-        - "--block-size"
-        - "64"
-        - "--kv-transfer-config"
-        - '{"kv_connector":"NixlConnector", "kv_role":"kv_both", "kv_buffer_device":"cpu"}'
-        - "--disable-uvicorn-access-log"
-        - "--max-model-len"
-        - "32000"
-      securityContext:
-        fsGroup: 107
-        supplementalGroups:
-          - 107
-      env:
-        - name: UCX_TLS
-          value: "tcp"
-        - name: VLLM_NIXL_SIDE_CHANNEL_HOST
-          valueFrom:
-            fieldRef:
-              fieldPath: status.podIP
-        - name: VLLM_NIXL_SIDE_CHANNEL_PORT
-          value: "5600"
-        # Intel XPU environment variables (required after switching to DRA)
-        - name: VLLM_USE_V1
-          value: "1"
-        - name: TORCH_LLM_ALLREDUCE
-          value: "1"
-        - name: VLLM_WORKER_MULTIPROC_METHOD
-          value: "spawn"
-      ports:
-        - containerPort: 8000
-          name: vllm
-          protocol: TCP
-        - containerPort: 5600
-          name: nixl
-          protocol: TCP
-      resources:
-        limits:
-          memory: 64Gi
-          cpu: "8"
-          # note: XPU resources get controlled by parallelism + dra above
-        requests:
-          memory: 64Gi
-          cpu: "8"
-          # note: XPU resources get controlled by parallelism + dra above
-      mountModelVolume: true
-      volumeMounts:
-        - name: metrics-volume
-          mountPath: /.config
-        - name: shm
-          mountPath: /dev/shm
-        - name: torch-compile-cache
-          mountPath: /.cache
-      startupProbe:
-        httpGet:
-          path: /v1/models
-          port: vllm
-        initialDelaySeconds: 30
-        periodSeconds: 30
-        timeoutSeconds: 10
-        failureThreshold: 60
-      livenessProbe:
-        httpGet:
-          path: /health
-          port: vllm
-        periodSeconds: 30
-        timeoutSeconds: 10
-        failureThreshold: 20
-      readinessProbe:
-        httpGet:
-          path: /v1/models
-          port: vllm
-        periodSeconds: 10
-        timeoutSeconds: 5
-        failureThreshold: 6
+    image: amr-registry.caas.intel.com/aiops/catalog/intel-vllm:wenxin-test-2 
+    modelCommand: vllmServe
+    args:
+      - "--block-size"
+      - "128"
+      - "--kv-transfer-config"
+      - '{"kv_connector":"NixlConnector", "kv_role":"kv_both", "kv_buffer_device":"xpu"}' # change the kv_buffer_device xpu/cpu w/o gdr
+      - "--disable-log-requests"
+      - "--disable-uvicorn-access-log"
+      - "--max-model-len"
+      - "32000"
+      - "--no-enable-prefix-caching"
+    securityContext:
+      privileged: true
+      runAsUser: 0
+      runAsGroup: 0
+      # fsGroup: 107
+      capabilities:
+        add: ["IPC_LOCK","SYS_PTRACE","SYS_ADMIN","SYS_RAWIO"]
+    env:
+      - name: UCX_TLS
+        value: "ib,rc,ze_copy" # verbs: "ib,rc,ze_copy" IPC: "ze_ipc,ze_copy,tcp" # tcp only "tcp"
+      - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
+      - name: VLLM_NIXL_SIDE_CHANNEL_PORT
+        value: "5557"
+      - name: UCX_MEMTYPE_CACHE
+        value: "0"
+      - name: UCX_NET_DEVICES
+        value: "mlx5_0:1,mlx5_1:1,mlx5_2:1,mlx5_3:1"
+      - name: ZE_AFFINITY_MASK
+        value: "3"
+      - name: VLLM_LOGGING_LEVEL
+        value: "DEBUG"
+    ports:
+      - containerPort: 8000
+        name: vllm
+        protocol: TCP
+    resources:
+      limits:
+        memory: 64Gi
+        cpu: "16"
+        gpu.intel.com/xe: 1  # Change from gpu.intel.com/i915 to gpu.intel.com/xe
+        # rdma/hca_shared_devices_a: 1
+      requests:
+        memory: 64Gi
+        cpu: "16"
+        gpu.intel.com/xe: 1  # Change from gpu.intel.com/i915 to gpu.intel.com/xe
+        # rdma/hca_shared_devices_a: 1
+    mountModelVolume: true
+    volumeMounts:
+      - name: dshm
+        mountPath: /dev/shm
+      - name: driver
+        mountPath: /dev/dri
+    lifecycle:
+      postStart:
+        exec:
+          command: ["sh", "-c", "ulimit -n 65535; ulimit -l unlimited"]
   volumes:
-    - name: metrics-volume
-      emptyDir: {}
-    - name: shm
+    - name: dshm
       emptyDir:
         medium: Memory
-        sizeLimit: "16Gi"
-    - name: torch-compile-cache
-      emptyDir: {}
+        sizeLimit: 4Gi
+    - name: driver
+      hostPath:
+        path: /dev/dri
