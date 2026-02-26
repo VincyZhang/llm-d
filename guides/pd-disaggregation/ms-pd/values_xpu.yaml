@@ -40,24 +40,21 @@ decode:
       interval: "30s"
   containers:
     - name: "vllm"
-      image: ghcr.io/llm-d/llm-d-xpu:v0.5.0
-      modelCommand: vllmServe
-      args:
-        - "--block-size"
-        - "64"
-        - "--kv-transfer-config"
-        - '{"kv_connector":"NixlConnector", "kv_role":"kv_both", "kv_buffer_device":"cpu"}'
-        - "--disable-log-requests"
-        - "--disable-uvicorn-access-log"
-        - "--max-model-len"
-        - "32000"
+      image: amr-registry.caas.intel.com/aiops/catalog/intel-vllm:wenxin-test-2
+      modelCommand: custom
+      command: ["bash","-c","export UCX_NET_DEVICES=$(rdma link | grep netdev | awk '{print $2}' | cut -d'/' -f1):1 && exec vllm serve Qwen/Qwen3-0.6 --block-size 64 --kv-transfer-config '{kv_connector:NixlConnector, kv_role:kv_both, kv_buffer_device:xpu}' --disable-log-requests --disable-uvicorn-access-log --max-model-len 32000"]
       securityContext:
         fsGroup: 107
         supplementalGroups:
           - 107
+        privileged: true
+        runAsUser: 0
+        runAsGroup: 0
+        capabilities:
+          add: ["IPC_LOCK","SYS_PTRACE","SYS_ADMIN","SYS_RAWIO"]
       env:
         - name: UCX_TLS
-          value: "tcp"
+          value: "ib,rc,ze_copy"
         - name: VLLM_NIXL_SIDE_CHANNEL_HOST
           valueFrom:
             fieldRef:
@@ -74,10 +71,8 @@ decode:
       ports:
         - containerPort: 8200
           name: vllm
-          protocol: TCP
         - containerPort: 5600
           name: nixl
-          protocol: TCP
       resources:
         limits:
           memory: 64Gi
@@ -95,6 +90,21 @@ decode:
           mountPath: /dev/shm
         - name: torch-compile-cache
           mountPath: /.cache
+        - name: model-storage
+          emptyDir:
+            sizeLimit: 10Gi
+        - name: infiniband
+          hostPath:
+            path: /dev/infiniband
+        - name: driver
+          hostPath:
+            path: /dev/dri
+        - name: sys-net
+          hostPath:
+            path: /sys/class/net
+        - name: sys-ib-verbs
+          hostPath:
+            path: /sys/class/infiniband_verbs
       startupProbe:
         httpGet:
           path: /v1/models
@@ -126,6 +136,21 @@ decode:
         sizeLimit: "16Gi"
     - name: torch-compile-cache
       emptyDir: {}
+    - name: model-storage
+      emptyDir:
+        sizeLimit: 10Gi
+    - name: infiniband
+      hostPath:
+        path: /dev/infiniband
+    - name: driver
+      hostPath:
+        path: /dev/dri
+    - name: sys-net
+      hostPath:
+        path: /sys/class/net
+    - name: sys-ib-verbs
+      hostPath:
+        path: /sys/class/infiniband_verbs
 
 prefill:
   parallelism:
@@ -140,23 +165,21 @@ prefill:
       interval: "30s"
   containers:
     - name: "vllm"
-      image: ghcr.io/llm-d/llm-d-xpu:v0.5.0
-      modelCommand: vllmServe
-      args:
-        - "--block-size"
-        - "64"
-        - "--kv-transfer-config"
-        - '{"kv_connector":"NixlConnector", "kv_role":"kv_both", "kv_buffer_device":"cpu"}'
-        - "--disable-uvicorn-access-log"
-        - "--max-model-len"
-        - "32000"
+      image: amr-registry.caas.intel.com/aiops/catalog/intel-vllm:wenxin-test-2
+      modelCommand: custom
+      command: ["bash","-c","export UCX_NET_DEVICES=$(rdma link | grep netdev | awk '{print $2}' | cut -d'/' -f1):1 && exec vllm serve Qwen/Qwen3-0.6 --block-size 64 --kv-transfer-config '{kv_connector:NixlConnector, kv_role:kv_both, kv_buffer_device:xpu}' --disable-log-requests --disable-uvicorn-access-log --max-model-len 32000"]
       securityContext:
         fsGroup: 107
         supplementalGroups:
           - 107
+        privileged: true
+        runAsUser: 0
+        runAsGroup: 0
+        capabilities:
+          add: ["IPC_LOCK","SYS_PTRACE","SYS_ADMIN","SYS_RAWIO"]
       env:
         - name: UCX_TLS
-          value: "tcp"
+          value: "ib,rc,ze_copy"
         - name: VLLM_NIXL_SIDE_CHANNEL_HOST
           valueFrom:
             fieldRef:
@@ -173,10 +196,8 @@ prefill:
       ports:
         - containerPort: 8000
           name: vllm
-          protocol: TCP
         - containerPort: 5600
           name: nixl
-          protocol: TCP
       resources:
         limits:
           memory: 64Gi
@@ -194,6 +215,21 @@ prefill:
           mountPath: /dev/shm
         - name: torch-compile-cache
           mountPath: /.cache
+        - name: model-storage
+          emptyDir:
+            sizeLimit: 10Gi
+        - name: infiniband
+          hostPath:
+            path: /dev/infiniband
+        - name: driver
+          hostPath:
+            path: /dev/dri
+        - name: sys-net
+          hostPath:
+            path: /sys/class/net
+        - name: sys-ib-verbs
+          hostPath:
+            path: /sys/class/infiniband_verbs
       startupProbe:
         httpGet:
           path: /v1/models
@@ -225,3 +261,18 @@ prefill:
         sizeLimit: "16Gi"
     - name: torch-compile-cache
       emptyDir: {}
+    - name: model-storage
+      emptyDir:
+        sizeLimit: 10Gi
+    - name: infiniband
+      hostPath:
+        path: /dev/infiniband
+    - name: driver
+      hostPath:
+        path: /dev/dri
+    - name: sys-net
+      hostPath:
+        path: /sys/class/net
+    - name: sys-ib-verbs
+      hostPath:
+        path: /sys/class/infiniband_verbs
