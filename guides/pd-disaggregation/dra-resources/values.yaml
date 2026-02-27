@@ -1,0 +1,36 @@
+# DRA (Dynamic Resource Allocation) Resources Configuration
+# This chart manages RDMA-related DeviceClass and ResourceClaimTemplate resources
+
+# Enable/disable DRA deployment
+enabled: true
+
+# RDMA DeviceClass configuration
+rdmaDeviceClass:
+  enabled: true
+  name: rdma-dranet
+  description: "DeviceClass for RDMA-capable network interfaces"
+  selectors:
+    - expression: 'device.driver == "dra.net"'
+    - expression: 'device.attributes["dra.net"].rdma == true'
+
+# RDMA ResourceClaimTemplate configuration
+rdmaResourceClaimTemplate:
+  enabled: true
+  name: rdma-net-template
+  description: "ResourceClaimTemplate for RDMA interface allocation"
+
+# Intel XPU specific RDMA DeviceClass
+intelXpuRdmaDeviceClass:
+  enabled: false  # Set to true if using Intel XPU accelerator
+  name: intel-xpu-rdma
+  description: "DeviceClass for Intel XPU RDMA interfaces"
+  selectors:
+    - expression: 'device.driver == "intel.dra.net"'
+    - expression: 'device.attributes["intel.dra.net"].rdma == true'
+
+# Intel XPU specific ResourceClaimTemplate
+intelXpuResourceClaimTemplate:
+  enabled: false  # Set to true if using Intel XPU accelerator
+  decodeName: intel-decode-claim-template
+  prefillName: intel-prefill-claim-template
+  description: "ResourceClaimTemplate for Intel XPU RDMA allocation"

@@ -1,0 +1,17 @@
+apiVersion: v2
+name: llm-d-dra-resources
+description: Kubernetes DRA (Dynamic Resource Allocation) resources for llm-d
+type: application
+version: 0.1.0
+appVersion: "1.0"
+maintainers:
+  - name: llm-d
+    email: llm-d@example.com
+home: https://github.com/llm-d/llm-d
+sources:
+  - https://github.com/llm-d/llm-d
+keywords:
+  - dra
+  - kubernetes
+  - dynamic-resource-allocation
+  - rdma

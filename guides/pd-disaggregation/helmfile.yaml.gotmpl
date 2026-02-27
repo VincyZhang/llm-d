@@ -38,11 +38,29 @@ repositories:
     url: https://llm-d-incubation.github.io/llm-d-infra/
 
 releases:
+  - name: {{ printf "dra-%s" $rn | quote }}
+    namespace: {{ $ns }}
+    chart: ./dra-resources
+    installed: true
+    labels:
+      type: infrastructure
+      kind: dra-resources
+    values:
+      - enabled: true
+    {{- if eq .Environment.Name "xpu" }}
+      - intelXpuRdmaDeviceClass:
+          enabled: true
+        intelXpuResourceClaimTemplate:
+          enabled: true
+    {{- end }}
+
   - name: {{ printf "infra-%s" $rn | quote }}
     namespace: {{ $ns }}
     chart: llm-d-infra/llm-d-infra
     version: v1.3.6
     installed: true
+    needs:
+      - {{ printf "dra-%s" $rn | quote }}
     labels:
       type: infrastructure
       kind: inference-stack
@@ -93,11 +111,13 @@ releases:
     version: v0.4.5
     installed: true
     needs:
+      - {{ printf "dra-%s" $rn | quote }}
       - {{ printf "infra-%s" $rn | quote }}
       - {{ printf "gaie-%s" $rn | quote }}
     values:
     {{- if eq .Environment.Name "xpu" }}
       - ms-pd/values_xpu.yaml
+      - ms-pd/values_xpu_dra.yaml
     {{- else if eq .Environment.Name "hpu" }}
       - ms-pd/values_hpu.yaml
     {{- else if eq .Environment.Name "gke_tpu" }}

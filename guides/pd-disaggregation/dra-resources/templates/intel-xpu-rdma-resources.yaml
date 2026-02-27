@@ -1,0 +1,69 @@
+{{- if and .Values.enabled .Values.intelXpuRdmaDeviceClass.enabled }}
+apiVersion: resource.k8s.io/v1
+kind: DeviceClass
+metadata:
+  name: {{ .Values.intelXpuRdmaDeviceClass.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: llm-d
+    component: dra
+    type: rdma
+    vendor: intel
+    accelerator: xpu
+  annotations:
+    description: {{ .Values.intelXpuRdmaDeviceClass.description }}
+spec:
+  selectors:
+  {{- range .Values.intelXpuRdmaDeviceClass.selectors }}
+    - cel:
+        expression: {{ .expression | quote }}
+  {{- end }}
+---
+{{- end }}
+{{- if and .Values.enabled .Values.intelXpuResourceClaimTemplate.enabled }}
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: {{ .Values.intelXpuResourceClaimTemplate.decodeName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: llm-d
+    component: dra
+    type: rdma
+    vendor: intel
+    accelerator: xpu
+    pipeline-stage: decode
+  annotations:
+    description: {{ .Values.intelXpuResourceClaimTemplate.description }}
+spec:
+  spec:
+    devices:
+      requests:
+        - name: intel-decode-rdma
+          exactly:
+            deviceClassName: {{ .Values.intelXpuRdmaDeviceClass.name }}
+            count: 1
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: {{ .Values.intelXpuResourceClaimTemplate.prefillName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: llm-d
+    component: dra
+    type: rdma
+    vendor: intel
+    accelerator: xpu
+    pipeline-stage: prefill
+  annotations:
+    description: {{ .Values.intelXpuResourceClaimTemplate.description }}
+spec:
+  spec:
+    devices:
+      requests:
+        - name: intel-prefill-rdma
+          exactly:
+            deviceClassName: {{ .Values.intelXpuRdmaDeviceClass.name }}
+            count: 1
+{{- end }}

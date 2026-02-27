@@ -1,0 +1,16 @@
+# Intel XPU RDMA DRA Override Values
+# Use this to override resourceClaimTemplateName for Intel XPU specific DRA templates
+
+decode:
+  containers:
+    - name: "vllm"
+      resourceClaims:
+        - name: intel-decode-rdma
+          resourceClaimTemplateName: intel-decode-claim-template
+
+prefill:
+  containers:
+    - name: "vllm"
+      resourceClaims:
+        - name: intel-prefill-rdma
+          resourceClaimTemplateName: intel-prefill-claim-template
