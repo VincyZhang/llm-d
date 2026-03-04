@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ms-pd-llm-d-modelservice-decode
+spec:
+  template:
+    spec:
+      resourceClaims:
+        - name: rdma-net-interface
+          resourceClaimTemplateName: intel-decode-claim-template
+      containers:
+        - name: vllm
+          resources:
+            claims:
+              - name: rdma-net-interface
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ms-pd-llm-d-modelservice-prefill
+spec:
+  template:
+    spec:
+      resourceClaims:
+        - name: rdma-net-interface
+          resourceClaimTemplateName: intel-prefill-claim-template
+      containers:
+        - name: vllm
+          resources:
+            claims:
+              - name: rdma-net-interface
