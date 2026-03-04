@@ -140,10 +140,9 @@ helmfile apply -f istio.helmfile.yaml --selector kind=gateway-control-plane
 
 ## Step 5: Deploy Intel XPU PD Disaggregation
 
-The Intel XPU configuration in `ms-pd/values_xpu.yaml` uses a unified accelerator type that works with all Intel GPU drivers:
+The Intel XPU configuration uses a unified accelerator type that works with all Intel GPU drivers:
 
 ```yaml
-# Unified configuration for all Intel GPUs
 accelerator:
   type: intel
   dra: true
@@ -151,13 +150,32 @@ accelerator:
 
 **Note:** The unified `intel` type works with both Intel Data Center GPU Max 1550 (i915 driver) and Intel BMG GPUs (Battlemage G21, xe driver). Dynamic Resource Allocation (DRA) automatically handles driver selection.
 
-```shell
-# Navigate to PD disaggregation guide directory
-cd guides/pd-disaggregation
+### Deployment
 
-# Deploy Intel XPU PD disaggregation configuration
+Navigate to the deployment directory:
+
+```shell
+cd guides/pd-disaggregation
+```
+
+Choose one of the following deployment methods:
+
+#### Option 1: Standard Deployment
+
+```shell
 helmfile apply -e xpu -n ${NAMESPACE}
 ```
+
+#### Option 2: RDMA Deployment
+
+Apply RDMA DRA resource claims first, then deploy PD disaggregation.
+
+```shell
+kubectl apply -f ms-pd/rdma-resource-claims.yaml -n ${NAMESPACE}
+helmfile apply -e xpu_rdma -n ${NAMESPACE}
+```
+
+### Deployed Components
 
 This will deploy three main components in the `llm-d-pd` namespace:
 
