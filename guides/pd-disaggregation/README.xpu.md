@@ -16,6 +16,28 @@ This document provides complete steps for deploying Intel XPU PD (Prefill-Decode
 * Intel GPU Plugin deployed
 * kubectl access with cluster-admin privileges
 
+### Additional Requirements for RDMA Deployment (`-e xpu_rdma`)
+
+The RDMA path in this guide applies `ms-pd/rdma-resource-claims.yaml`, which uses:
+
+* `apiVersion: resource.k8s.io/v1`
+* `ResourceClaimTemplate` (DRA)
+
+Before using RDMA deployment, ensure all of the following are true:
+
+* Kubernetes version is **v1.34.0+** (or another version in your distribution that serves `resource.k8s.io/v1`).
+* Dynamic Resource Allocation (DRA) is enabled in your cluster control plane/node components for your distro.
+* `rdma-dranet` `DeviceClass` already exists in the target cluster.
+
+Quick checks:
+
+```bash
+kubectl api-resources | grep -E 'resourceclaims|resourceclaimtemplates|deviceclasses'
+kubectl get deviceclass rdma-dranet
+```
+
+If these checks fail, `kubectl apply -f ms-pd/rdma-resource-claims.yaml` may fail, or pods may stay Pending due to unsatisfied device requests.
+
 ### Client Setup
 
 * Create a namespace for installation.
