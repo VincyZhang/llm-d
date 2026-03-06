@@ -23,6 +23,8 @@ environments:
       - ../prereq/gateway-provider/common-configurations/istio.yaml
   xpu_rdma: &XPURDMA
     <<: *XPU
+  xpu_rdma_aligned: &XPURDMAALIGNED
+    <<: *XPURDMA
   hpu: &HPU
     <<: *I
   aks: &AKS
@@ -73,7 +75,7 @@ releases:
               enabled: true
     {{- end }}
     # Apply destination rule for anything istio
-    {{- if or (eq .Environment.Name "istio") (eq .Environment.Name "default") (eq .Environment.Name "aks") (eq .Environment.Name "amd") (eq .Environment.Name "xpu") (eq .Environment.Name "xpu_rdma") (eq .Environment.Name "hpu") }}
+    {{- if or (eq .Environment.Name "istio") (eq .Environment.Name "default") (eq .Environment.Name "aks") (eq .Environment.Name "amd") (eq .Environment.Name "xpu") (eq .Environment.Name "xpu_rdma") (eq .Environment.Name "xpu_rdma_aligned") (eq .Environment.Name "hpu") }}
       - provider:
           name: {{ .Environment.Values.provider.name }}
           istio:
@@ -106,6 +108,9 @@ releases:
       - ms-pd/values_xpu.yaml
     {{- else if eq .Environment.Name "xpu_rdma" }}
       - ms-pd/values_xpu_rdma.yaml
+    {{- else if eq .Environment.Name "xpu_rdma_aligned" }}
+      - ms-pd/values_xpu_rdma.yaml
+      - ms-pd/values_xpu_rdma_aligned.yaml
     {{- else if eq .Environment.Name "hpu" }}
       - ms-pd/values_hpu.yaml
     {{- else if eq .Environment.Name "gke_tpu" }}
