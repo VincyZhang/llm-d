@@ -7,6 +7,23 @@ multinode: false
 accelerator:
   type: intel
   dra: true
+  resourceClaimTemplates:
+    intel:
+      name: intel-claim-template
+      class: gpu.intel.com
+      match: "exactly"
+      selectors: []
+      rdmaNet:
+        enabled: true
+        name: intel-rdma-claim-template
+        claimName: intel-rdma-claim
+        requestName: rdma-dranet
+        class: rdma-dranet
+        match: "exactly"
+        count: 1
+        selectors:
+          - cel:
+              expression: "true"
 
 modelArtifacts:
   uri: "hf://Qwen/Qwen3-0.6B"
@@ -38,12 +55,9 @@ decode:
       portName: "vllm"  # decode vLLM service port (from routing.proxy.targetPort)
       path: "/metrics"
       interval: "30s"
-  resourceClaims:
-    - name: rdma-net-interface
-      resourceClaimTemplateName: rdma-net-template
   containers:
     - name: "vllm"
-      image: ghcr.io/llm-d/llm-d-xpu:v0.5.0
+      image: amr-registry.caas.intel.com/aiops/catalog/intel-vllm:0.14.1
       modelCommand: custom
       command: ["/bin/bash", "-c"]
       args:
@@ -67,6 +81,16 @@ decode:
       env:
         - name: UCX_TLS
           value: "ib,rc,ze_copy"
+        - name: http_proxy
+          value: "http://proxy-shz.intel.com:912"
+        - name: https_proxy
+          value: "http://proxy-shz.intel.com:912"
+        - name: no_proxy
+          value: "127.0.0.1,localhost,.cluster.local"
+        - name: HD_ENDPOINT
+          value: "https://hf-mirror.com"
+        - name: HF_ENDPOINT
+          value: "https://hf-mirror.com"
         - name: VLLM_NIXL_SIDE_CHANNEL_HOST
           valueFrom:
             fieldRef:
@@ -93,12 +117,10 @@ decode:
           protocol: TCP
       resources:
         limits:
-          memory: 64Gi
-          cpu: "16"
+          cpu: "4"
           # note: XPU resources get controlled by parallelism + accelerators above
         requests:
-          memory: 64Gi
-          cpu: "16"
+          cpu: "4"
           # note: XPU resources get controlled by parallelism + accelerators above
       mountModelVolume: true
       volumeMounts:
@@ -162,12 +184,9 @@ prefill:
       portName: "vllm"  # prefill vLLM service port (from routing.servicePort)
       path: "/metrics"
       interval: "30s"
-  resourceClaims:
-    - name: rdma-net-interface
-      resourceClaimTemplateName: rdma-net-template
   containers:
     - name: "vllm"
-      image: ghcr.io/llm-d/llm-d-xpu:v0.5.0
+      image: amr-registry.caas.intel.com/aiops/catalog/intel-vllm:0.14.1
       modelCommand: custom
       command: ["/bin/bash", "-c"]
       args:
@@ -191,6 +210,16 @@ prefill:
       env:
         - name: UCX_TLS
           value: "ib,rc,ze_copy"
+        - name: http_proxy
+          value: "http://proxy-shz.intel.com:912"
+        - name: https_proxy
+          value: "http://proxy-shz.intel.com:912"
+        - name: no_proxy
+          value: "127.0.0.1,localhost,.cluster.local"
+        - name: HD_ENDPOINT
+          value: "https://hf-mirror.com"
+        - name: HF_ENDPOINT
+          value: "https://hf-mirror.com"
         - name: VLLM_NIXL_SIDE_CHANNEL_HOST
           valueFrom:
             fieldRef:
@@ -217,12 +246,10 @@ prefill:
           protocol: TCP
       resources:
         limits:
-          memory: 64Gi
-          cpu: "8"
+          cpu: "4"
           # note: XPU resources get controlled by parallelism + dra above
         requests:
-          memory: 64Gi
-          cpu: "8"
+          cpu: "4"
           # note: XPU resources get controlled by parallelism + dra above
       mountModelVolume: true
       volumeMounts:
