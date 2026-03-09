@@ -93,7 +93,8 @@ releases:
 
   - name: {{ printf "ms-%s" $rn | quote }}
     namespace: {{ $ns }}
-    chart: ../../../llm-d-modelservice/charts/llm-d-modelservice
+    chart: llm-d-modelservice/llm-d-modelservice
+    version: v0.4.6
     installed: true
     needs:
       - {{ printf "infra-%s" $rn | quote }}
