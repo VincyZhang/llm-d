@@ -108,9 +108,11 @@ decode:
       resources:
         limits:
           cpu: "4"
+          memory: "8Gi"
           # note: XPU resources get controlled by parallelism + accelerators above
         requests:
           cpu: "4"
+          memory: "8Gi"
           # note: XPU resources get controlled by parallelism + accelerators above
       mountModelVolume: true
       volumeMounts:
@@ -227,9 +229,11 @@ prefill:
       resources:
         limits:
           cpu: "4"
+          memory: "8Gi"
           # note: XPU resources get controlled by parallelism + dra above
         requests:
           cpu: "4"
+          memory: "8Gi"
           # note: XPU resources get controlled by parallelism + dra above
       mountModelVolume: true
       volumeMounts:
