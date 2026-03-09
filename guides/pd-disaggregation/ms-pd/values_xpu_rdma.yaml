@@ -57,7 +57,7 @@ decode:
       interval: "30s"
   containers:
     - name: "vllm"
-      image: amr-registry.caas.intel.com/aiops/catalog/intel-vllm:0.14.1
+      image: ghcr.io/llm-d/llm-d-xpu:v0.5.0
       modelCommand: custom
       command: ["/bin/bash", "-c"]
       args:
@@ -81,16 +81,6 @@ decode:
       env:
         - name: UCX_TLS
           value: "ib,rc,ze_copy"
-        - name: http_proxy
-          value: "http://proxy-shz.intel.com:912"
-        - name: https_proxy
-          value: "http://proxy-shz.intel.com:912"
-        - name: no_proxy
-          value: "127.0.0.1,localhost,.cluster.local"
-        - name: HD_ENDPOINT
-          value: "https://hf-mirror.com"
-        - name: HF_ENDPOINT
-          value: "https://hf-mirror.com"
         - name: VLLM_NIXL_SIDE_CHANNEL_HOST
           valueFrom:
             fieldRef:
@@ -186,7 +176,7 @@ prefill:
       interval: "30s"
   containers:
     - name: "vllm"
-      image: amr-registry.caas.intel.com/aiops/catalog/intel-vllm:0.14.1
+      image: ghcr.io/llm-d/llm-d-xpu:v0.5.0
       modelCommand: custom
       command: ["/bin/bash", "-c"]
       args:
@@ -210,16 +200,6 @@ prefill:
       env:
         - name: UCX_TLS
           value: "ib,rc,ze_copy"
-        - name: http_proxy
-          value: "http://proxy-shz.intel.com:912"
-        - name: https_proxy
-          value: "http://proxy-shz.intel.com:912"
-        - name: no_proxy
-          value: "127.0.0.1,localhost,.cluster.local"
-        - name: HD_ENDPOINT
-          value: "https://hf-mirror.com"
-        - name: HF_ENDPOINT
-          value: "https://hf-mirror.com"
         - name: VLLM_NIXL_SIDE_CHANNEL_HOST
           valueFrom:
             fieldRef:
