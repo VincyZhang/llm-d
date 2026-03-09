@@ -28,6 +28,23 @@ Before using RDMA deployment, ensure all of the following are true:
 * Kubernetes version is **v1.34.0+** (or another version in your distribution that serves `resource.k8s.io/v1`).
 * Dynamic Resource Allocation (DRA) is enabled in your cluster control plane/node components for your distro.
 * `rdma-dranet` `DeviceClass` already exists in the target cluster.
+- Keep namespace consistent (`ResourceClaimTemplate` must exist in deployment namespace).
+- If your cluster uses a different RDMA DeviceClass name (e.g. `rdma-net`), update `deviceClassName` accordingly.
+
+Install DRANET and verify the resources are created:
+
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/dranet/refs/heads/main/install.yaml
+kubectl get resourceslice
+```
+
+Expected output:
+
+```text
+NAME                     NODE         DRIVER       POOL
+arrow-dra.net-l446r      arrow        dra.net      arrow
+```
 
 Quick checks:
 

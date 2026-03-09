@@ -93,11 +93,9 @@ decode:
           protocol: TCP
       resources:
         limits:
-          memory: 64Gi
           cpu: "16"
           # note: XPU resources get controlled by parallelism + accelerators above
         requests:
-          memory: 64Gi
           cpu: "16"
           # note: XPU resources get controlled by parallelism + accelerators above
       mountModelVolume: true
@@ -217,11 +215,9 @@ prefill:
           protocol: TCP
       resources:
         limits:
-          memory: 64Gi
           cpu: "8"
           # note: XPU resources get controlled by parallelism + dra above
         requests:
-          memory: 64Gi
           cpu: "8"
           # note: XPU resources get controlled by parallelism + dra above
       mountModelVolume: true
