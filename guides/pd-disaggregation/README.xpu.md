@@ -55,6 +55,26 @@ kubectl get deviceclass rdma-dranet
 
 If these checks fail, `kubectl apply -f ms-pd/rdma-resource-claims.yaml` may fail, or pods may stay Pending due to unsatisfied device requests.
 
+### Additional Requirements for Aligned RDMA Deployment (`-e xpu_rdma_aligned`)
+
+The aligned RDMA path uses a single claim template (`ms-pd/gpu-nic-aligned-claim.yaml`) that requests both GPU and RDMA NIC with a shared `pcieRoot` constraint.
+
+Before using aligned RDMA deployment, ensure all of the following are true:
+
+* Kubernetes version is **v1.34.0+** (or another version in your distribution that serves `resource.k8s.io/v1`).
+* Dynamic Resource Allocation (DRA) is enabled in your cluster control plane/node components for your distro.
+* Both `gpu.intel.com` and `rdma-dranet` `DeviceClass` entries exist in the target cluster.
+
+Quick checks:
+
+```bash
+kubectl api-resources | grep -E 'resourceclaims|resourceclaimtemplates|deviceclasses'
+kubectl get deviceclass gpu.intel.com
+kubectl get deviceclass rdma-dranet
+```
+
+If these checks fail, `kubectl apply -f ms-pd/gpu-nic-aligned-claim.yaml` may fail, or pods may stay Pending due to unsatisfied/alignment-constrained device requests.
+
 ### Client Setup
 
 * Create a namespace for installation.
@@ -212,6 +232,15 @@ Apply RDMA DRA resource claims first, then deploy PD disaggregation.
 ```shell
 kubectl apply -f ms-pd/rdma-resource-claims.yaml -n ${NAMESPACE}
 helmfile apply -e xpu_rdma -n ${NAMESPACE}
+```
+
+#### Option 3: Aligned RDMA Deployment (GPU/NIC PCIe-root aligned)
+
+Apply aligned claim templates first, then deploy the aligned environment.
+
+```shell
+kubectl apply -f ms-pd/gpu-nic-aligned-claim.yaml -n ${NAMESPACE}
+helmfile apply -e xpu_rdma_aligned -n ${NAMESPACE}
 ```
 
 ### Deployed Components
