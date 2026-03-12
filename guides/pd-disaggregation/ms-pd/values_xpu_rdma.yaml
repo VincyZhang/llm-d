@@ -54,7 +54,6 @@ decode:
             --served-model-name "Qwen/Qwen3-0.6B" \
             --block-size 64 \
             --kv-transfer-config '{"kv_connector":"NixlConnector", "kv_role":"kv_both", "kv_buffer_device":"xpu"}' \
-            --disable-log-requests \
             --disable-uvicorn-access-log \
             --max-model-len 32000 \
             --no-enable-prefix-caching
@@ -176,7 +175,6 @@ prefill:
             --served-model-name "Qwen/Qwen3-0.6B" \
             --block-size 64 \
             --kv-transfer-config '{"kv_connector":"NixlConnector", "kv_role":"kv_both", "kv_buffer_device":"xpu"}' \
-            --disable-log-requests \
             --disable-uvicorn-access-log \
             --max-model-len 32000 \
             --no-enable-prefix-caching
