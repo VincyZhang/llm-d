@@ -1,111 +1,47 @@
-# Simplified Intel XPU configuration using imageDefault mode
-# This configuration lets the chart handle most vLLM parameters automatically
-
-modelArtifacts:
-  name: Qwen/Qwen3-0.6B
-  uri: "hf://Qwen/Qwen3-0.6B"
-  size: 10Gi
-  authSecretName: "llm-d-hf-token"
-  labels:
-    llm-d.ai/inference-serving: "true"
-    llm-d.ai/guide: "inference-scheduling"
-    llm-d.ai/hardware-variant: "xpu"
-    llm-d.ai/accelerator-vendor: "intel"
-    llm-d.ai/model: "Qwen3-0.6B"
-
-# Configure accelerator type for Intel XPU via DRA
-accelerator:
-  type: intel
-  dra: true
-
-routing:
-  proxy:
-    enabled: false  # removes sidecar from deployment - no PD in inference scheduling
-    targetPort: 8000  # controls vLLM port to matchup with sidecar if deployed
-
-decode:
-  create: true
-  replicas: 2
-  extraConfig:
-    hostname: msdec
+inferenceExtension:
+  replicas: 1
+  flags:
+    # in vLLM 10.0+, the metric is renamed while upstream GAIE is still using the old name as default.
+    # See https://github.com/kubernetes-sigs/gateway-api-inference-extension/pull/1905.
+    kv-cache-usage-percentage-metric: "vllm:kv_cache_usage_perc"
+  image:
+    # both downstream infernece-scheduler and upstream epp image can support inference-scheduling example
+    ###################
+    name: llm-d-inference-scheduler
+    hub: ghcr.io/llm-d
+    tag: v0.5.0
+    ###################
+    # name: epp
+    # hub: registry.k8s.io/gateway-api-inference-extension
+    # tag: v1.3.0
+    ###################
+    pullPolicy: Always
+  extProcPort: 9002
+  pluginsConfigFile: "custom-plugins.yaml"
+  pluginsCustomConfig:
+    custom-plugins.yaml: |
+      apiVersion: inference.networking.x-k8s.io/v1alpha1
+      kind: EndpointPickerConfig
+      plugins:
+      - type: random-picker
+        parameters:
+          maxNumOfEndpoints: 1
+      - type: single-profile-handler
+      schedulingProfiles:
+      - name: default
+        plugins:
+        - pluginRef: random-picker
   monitoring:
-    podmonitor:
+    interval: "10s"
+    prometheus:
       enabled: true
-      portName: "vllm"
-      path: "/metrics"
-      interval: "30s"
-  containers:
-    - name: "vllm"
-      # Use Intel latest published xpu image
-      image: ghcr.io/llm-d/llm-d-xpu:v0.5.0
-      modelCommand: "vllmServe"
-      args:
-        - "--dtype"
-        - "float16"
-        - "--disable-sliding-window"
-      securityContext:
-        fsGroup: 107
-        supplementalGroups:
-          - 107
-      env:
-        - name: VLLM_LOGGING_LEVEL
-          value: DEBUG
-        - name: http_proxy
-          value: "http://proxy-shz.intel.com:912"
-        - name: https_proxy
-          value: "http://proxy-shz.intel.com:912"
-        - name: no_proxy
-          value: "127.0.0.1,localhost,.cluster.local"
-        - name: HF_ENDPOINT
-          value: "https://hf-mirror.com"
-      ports:
-        - containerPort: 8000
-          name: vllm
-          protocol: TCP
-      resources:
-        limits:
-          cpu: "8"
-          memory: 24Gi
-        requests:
-          cpu: "4"
-          memory: 12Gi
-      mountModelVolume: true
-      volumeMounts:
-        - name: metrics-volume
-          mountPath: /.config
-        - name: torch-compile-cache
-          mountPath: /.cache
-      startupProbe:
-        httpGet:
-          path: /v1/models
-          port: vllm
-        initialDelaySeconds: 15
-        periodSeconds: 30
-        timeoutSeconds: 5
-        failureThreshold: 60
-      livenessProbe:
-        httpGet:
-          path: /health
-          port: vllm
-        periodSeconds: 10
-        timeoutSeconds: 5
-        failureThreshold: 3
-      readinessProbe:
-        httpGet:
-          path: /v1/models
-          port: vllm
-        periodSeconds: 5
-        timeoutSeconds: 2
-        failureThreshold: 3
-  volumes:
-    - name: metrics-volume
-      emptyDir: {}
-    - name: torch-compile-cache
-      emptyDir: {}
-
-# Disable prefill for simple XPU example
-prefill:
-  create: false
-
-# When true, use LeaderWorkerSet for multi-node XPU setups
-multinode: false
+      auth:
+        secretName: inference-scheduling-gateway-sa-metrics-reader-secret
+inferencePool:
+  targetPorts:
+    - number: 8000
+  modelServerType: vllm
+  modelServers:
+    matchLabels:
+      llm-d.ai/inference-serving: "true"
+      llm-d.ai/guide: "inference-scheduling"

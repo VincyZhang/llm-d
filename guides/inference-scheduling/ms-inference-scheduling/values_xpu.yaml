@@ -34,6 +34,8 @@ routing:
 decode:
   create: true
   replicas: 2
+  extraConfig:
+    hostname: msdec
   monitoring:
     podmonitor:
       enabled: true
