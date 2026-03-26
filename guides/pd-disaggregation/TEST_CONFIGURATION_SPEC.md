@@ -8,18 +8,14 @@ This document is the single source of truth for PD break-even benchmarking.
   - baseline: colocated vLLM serving (no PD) [BASELINE_NON_PD_DEPLOYMENT.md](BASELINE_NON_PD_DEPLOYMENT.md)
   - baseline-pd: separated prefill/decode without llm-d [BASELINE_PD_DEPLOYMENT.md](BASELINE_PD_DEPLOYMENT.md)
   - llm-d-pd: separated prefill/decode with llm-d [README.xpu.md](README.xpu.md)
+
 - Goal: identify crossover region where PD improves TTFT and throughput
 
 ## 2. Global Fixed Parameters
 
-Use the same fixed settings for all test cases unless a case row explicitly overrides them.
+Use the same fixed settings for all test cases.
 
 ```yaml
-api:
-  endpoint_baseline: http://localhost:8084/v1/chat/completions
-  endpoint_baseline_pd: http://localhost:8085/v1/chat/completions
-  endpoint_llmd_pd: http://localhost:8086/v1/chat/completions
-
 sampling:
   temperature: 0.0
   top_p: 1.0
@@ -43,7 +39,7 @@ metrics_required:
   - success_rate
 ```
 
-## 3. xPyD Design for Multi-Model on PVC 64G and BMG(24G)
+## 3. xPyD Design for Multi-Model on PVC and BMG
 
 This section defines a practical xPyD (XPU Prefill-Decode) starting design for the following models:
 
@@ -67,7 +63,7 @@ For non-PD (colocated) baseline sizing:
 - Keep TP as low as possible while fitting model memory
 - Scale throughput with replicas first, then increase TP if latency or memory requires
 
-| Model | PVC xPyD | PVC（64G） non-PD | BMG xPyD | BMG non-PD | Feasibility Note |
+| Model | PVC xPyD | PVC non-PD | BMG xPyD | BMG non-PD | Feasibility Note |
 |---|---|---|---|---|---|
 | GLM-4-9B | Prefill: TP=1, replicas=1; Decode: TP=1, replicas=1 | TP=1, replicas=2 | Prefill: TP=1, replicas=2 Decode: TP=1, replicas=1 | TP=1, replicas=2 | Strongly feasible on both platforms |
 | Qwen3-30B-A3B-Instruct-2507 | Prefill: TP=2, replicas=1; Decode: TP=2, replicas=1 | TP=2, replicas=2 | Prefill: TP=4, replicas=1; Decode: TP=4, replicas=1 | TP=4, replicas=2 | Feasible on both platforms |
@@ -88,91 +84,62 @@ Tuning rule:
 - TTFT high and TPOT low: add prefill replicas first (keep prefill TP low)
 - TPOT high and TTFT acceptable: increase decode TP first, then add decode replicas only if needed
 
-### 3.4 Runtime Guardrails
 
-- Keep `max-model-len` aligned with case ISL upper bound (at least 32768).
-- On BMG, default to INT4 for all models >=30B.
-- Keep per-mode `success_rate >= 0.99`; otherwise reduce concurrency one step.
-
-
-## 4. Test Case ID Rule
-
-Case ID is assigned by nested loop order with ISL-adaptive profiles:
-1. ISL group
-2. OSL list for that ISL group
-3. Concurrency list for that ISL group
-
-ISL-adaptive profile definition:
-
-- ISL 1024:
-  - OSL: 128, 1024
-  - Concurrency: 16, 32, 64
-- ISL 2048:
-  - OSL: 128, 1024
-  - Concurrency: 4, 8, 16
-- ISL 8192:
-  - OSL: 128
-  - Concurrency: 1, 4
-- ISL 12288：
-  - OSL: 128
-  - Concurrency: 1
-- ISL 16384:
-  - OSL: 128
-  - Concurrency: 1
-- ISL 32768:
-  - OSL: 128
-  - Concurrency: 1
-
-The resulting matrix contains 17 logical cases:
-- 6 cases for ISL 1024
-- 6 cases for ISL 2048
-- 2 cases for ISL 8192
-- 1 case for ISL 12288
-- 1 case for ISL 16384
-- 1 case for ISL 32768
-
-Each case must run three times:
-- once in baseline non-pd mode
-- once in baseline pd mode
-- once in llm-d pd mode
-
-So total runs = 17 cases × 3 modes = 51 runs.
-
-## 5. PD-search-sweep
+## 4. Test Case ID Rule and PD-search-sweep
 
 **Goal**: Find break-even point vs colocated serving across the full ISL/OSL/concurrency parameter space.
 
-**Parameter Ranges**:
-- ISL: 1024, 2048, 8192, 12288, 16384, 32768 tokens
-- OSL: 128, 1024 tokens
-- Concurrency: 1 – 64 concurrent requests
+Case IDs are generated in nested-loop order:
+1. ISL group
+2. OSL list under that ISL
+3. Concurrency list under that ISL
 
+ISL-adaptive profiles:
+
+| ISL | OSL | Concurrency | Case Count |
+|---:|---|---|---:|
+| 1024 | 128, 1024 | 16, 32, 64 | 6 |
+| 2048 | 128, 1024 | 4, 8, 16 | 6 |
+| 8192 | 128 | 1, 4 | 2 |
+| 12288 | 128 | 1 | 1 |
+| 16384 | 128 | 1 | 1 |
+| 32768 | 128 | 1 | 1 |
+
+Total logical cases: 17.
+
+Each case runs in 3 modes:
+- baseline (non-pd)
+- baseline-pd
+- llm-d-pd
+
+Total runs: 17 x 3 = 51.
+
+**Test Matrix**:
 Notes:
 - Each row defines one logical case.
-- Execute both baseline and pd for each row.
-- Prompt generator must guarantee exact ISL token length.
+- Execute three modes for each row.
 
 | CaseID | ISL | OSL | Concurrency | WarmupReq | MeasuredReq | TimeoutSec | Modes |
 |---|---:|---:|---:|---:|---:|---:|---|
-| TC-001 | 1024 | 128 | 16 | 30 | 300 | 120 | baseline,pd |
-| TC-002 | 1024 | 128 | 32 | 30 | 300 | 120 | baseline,pd |
-| TC-003 | 1024 | 128 | 64 | 30 | 300 | 120 | baseline,pd |
-| TC-004 | 1024 | 1024 | 16 | 30 | 300 | 120 | baseline,pd |
-| TC-005 | 1024 | 1024 | 32 | 30 | 300 | 120 | baseline,pd |
-| TC-006 | 1024 | 1024 | 64 | 30 | 300 | 120 | baseline,pd |
-| TC-007 | 2048 | 128 | 4 | 30 | 300 | 120 | baseline,pd |
-| TC-008 | 2048 | 128 | 8 | 30 | 300 | 120 | baseline,pd |
-| TC-009 | 2048 | 128 | 16 | 30 | 300 | 120 | baseline,pd |
-| TC-010 | 2048 | 1024 | 4 | 30 | 300 | 120 | baseline,pd |
-| TC-011 | 2048 | 1024 | 8 | 30 | 300 | 120 | baseline,pd |
-| TC-012 | 2048 | 1024 | 16 | 30 | 300 | 120 | baseline,pd |
-| TC-013 | 8192 | 128 | 1 | 30 | 300 | 120 | baseline,pd |
-| TC-014 | 8192 | 128 | 4 | 30 | 300 | 120 | baseline,pd |
-| TC-015 | 12288 | 128 | 1 | 30 | 300 | 120 | baseline,pd |
-| TC-016 | 16384 | 128 | 1 | 30 | 300 | 120 | baseline,pd |
-| TC-017 | 32768 | 128 | 1 | 30 | 300 | 120 | baseline,pd |
+| TC-001 | 1024 | 128 | 16 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
+| TC-002 | 1024 | 128 | 32 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
+| TC-003 | 1024 | 128 | 64 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
+| TC-004 | 1024 | 1024 | 16 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
+| TC-005 | 1024 | 1024 | 32 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
+| TC-006 | 1024 | 1024 | 64 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
+| TC-007 | 2048 | 128 | 4 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
+| TC-008 | 2048 | 128 | 8 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
+| TC-009 | 2048 | 128 | 16 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
+| TC-010 | 2048 | 1024 | 4 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
+| TC-011 | 2048 | 1024 | 8 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
+| TC-012 | 2048 | 1024 | 16 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
+| TC-013 | 8192 | 128 | 1 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
+| TC-014 | 8192 | 128 | 4 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
+| TC-015 | 12288 | 128 | 1 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
+| TC-016 | 16384 | 128 | 1 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
+| TC-017 | 32768 | 128 | 1 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
 
-## 6. Per-Case Request Template
+## 5. Per-Case Request Template
 
 ```json
 {
@@ -187,7 +154,7 @@ Notes:
 }
 ```
 
-## 7. Per-Case Command Template
+## 6. Per-Case Benchmark Command Template
 
 ```bash
 # baseline: --mode baseline
@@ -202,7 +169,7 @@ python benchmark_runner.py \
   --measured-requests 300
 ```
 
-## 8. Result Record Schema (Per Case Per Mode)
+## 7. Result Record Schema (Per Case Per Mode)
 
 ```json
 {
@@ -219,7 +186,7 @@ python benchmark_runner.py \
 }
 ```
 
-## 9. Break-Even Decision Rule
+## 8. Break-Even Decision Rule
 
 For the same CaseID, compare pd vs baseline:
 
@@ -236,7 +203,7 @@ Crossover region definition:
 - Minimal (ISL, OSL, concurrency) frontier where PD win starts to hold consistently.
 
 
-## 10. Acceptance Checklist
+## 9. Acceptance Checklist
 
 - [ ] All 17 CaseID completed in baseline.
 - [ ] All 17 CaseID completed in baseline-pd.
