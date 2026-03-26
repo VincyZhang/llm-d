@@ -1,0 +1,147 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-baseline-headless
+  namespace: llm-d-baseline
+spec:
+  clusterIP: None
+  selector:
+    app: vllm-baseline
+  ports:
+  - name: api
+    port: 8000
+    targetPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-baseline
+  namespace: llm-d-baseline
+spec:
+  selector:
+    app: vllm-baseline
+  ports:
+  - name: api
+    port: 8000
+    targetPort: 8000
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: baseline-gpu-template
+  namespace: llm-d-baseline
+spec:
+  spec:
+    devices:
+      requests:
+      - name: gpu
+        exactly:
+          allocationMode: ExactCount
+          count: 1
+          deviceClassName: gpu.intel.com
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: vllm-baseline
+  namespace: llm-d-baseline
+spec:
+  serviceName: vllm-baseline-headless
+  replicas: 2
+  selector:
+    matchLabels:
+      app: vllm-baseline
+  template:
+    metadata:
+      labels:
+        app: vllm-baseline
+    spec:
+      resourceClaims:
+      - name: intel-gpu-claim
+        resourceClaimTemplateName: baseline-gpu-template
+      containers:
+      - name: vllm
+        image: amr-registry.caas.intel.com/aiops/catalog/intel-vllm:0.14.1
+        securityContext:
+          privileged: true
+          runAsUser: 0
+          runAsGroup: 0
+          capabilities:
+            add: ["IPC_LOCK", "NET_ADMIN", "SYS_PTRACE", "SYS_ADMIN", "SYS_RAWIO"]
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          exec vllm serve Qwen/Qwen3-0.6B \
+            --port 8000 \
+            --served-model-name "Qwen/Qwen3-0.6B" \
+            --block-size 64 \
+            --disable-uvicorn-access-log \
+            --max-model-len 32768 \
+            --no-enable-prefix-caching
+        env:
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: llm-d-hf-token
+              key: HF_TOKEN
+        - name: HF_HOME
+          value: /model-cache
+        - name: VLLM_USE_V1
+          value: "1"
+        - name: TORCH_LLM_ALLREDUCE
+          value: "1"
+        - name: VLLM_WORKER_MULTIPROC_METHOD
+          value: "spawn"
+        - name: HTTP_PROXY
+          value: "$HTTP_PROXY"
+        - name: HTTPS_PROXY
+          value: "$HTTPS_PROXY"
+        - name: NO_PROXY
+          value: "$NO_PROXY"
+        - name: HF_ENDPOINT
+          value: https://hf-mirror.com
+        - name: VLLM_LOGGING_LEVEL
+          value: "DEBUG"
+        ports:
+        - containerPort: 8000
+          name: api
+        resources:
+          requests:
+            cpu: "8"
+            memory: 64Gi
+          limits:
+            cpu: "8"
+            memory: 64Gi
+          claims:
+          - name: intel-gpu-claim
+        startupProbe:
+          httpGet:
+            path: /v1/models
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          failureThreshold: 60
+        readinessProbe:
+          httpGet:
+            path: /v1/models
+            port: 8000
+          periodSeconds: 10
+          failureThreshold: 6
+        volumeMounts:
+        - name: shm
+          mountPath: /dev/shm
+        - name: driver
+          mountPath: /dev/dri
+        - name: model-storage
+          mountPath: /model-cache
+      volumes:
+      - name: shm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 16Gi
+      - name: driver
+        hostPath:
+          path: /dev/dri
+      - name: model-storage
+        emptyDir:
+          sizeLimit: 10Gi

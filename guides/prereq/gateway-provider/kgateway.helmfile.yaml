@@ -1,0 +1,23 @@
+releases:
+  - name: kgateway-crds
+    chart: oci://cr.kgateway.dev/kgateway-dev/charts/kgateway-crds
+    namespace: kgateway-system
+    version: v2.1.1
+    installed: true
+    labels:
+      type: gateway-provider
+      kind: gateway-crds
+
+  - name: kgateway
+    chart: oci://cr.kgateway.dev/kgateway-dev/charts/kgateway
+    version: v2.1.1
+    namespace: kgateway-system
+    installed: true
+    needs:
+      - kgateway-system/kgateway-crds
+    values:
+      - inferenceExtension:
+          enabled: true
+    labels:
+      type: gateway-provider
+      kind: gateway-control-plane

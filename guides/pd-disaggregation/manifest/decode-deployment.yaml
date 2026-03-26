@@ -1,0 +1,146 @@
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: intel-claim-template-decode
+  namespace: llm-d-pd
+spec:
+  spec:
+    devices:
+      requests:
+      - name: intel
+        exactly:
+          deviceClassName: gpu.intel.com
+          count: 1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-decode
+  namespace: llm-d-pd
+  labels:
+    app: vllm-decode
+    role: decode
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm-decode
+  template:
+    metadata:
+      labels:
+        app: vllm-decode
+        role: decode
+    spec:
+      resourceClaims:
+      - name: intel-decode-claim
+        resourceClaimTemplateName: intel-claim-template-decode
+      - name: rdma-net-interface
+        resourceClaimTemplateName: rdma-net-template
+      containers:
+      - name: vllm
+        image: amr-registry.caas.intel.com/aiops/catalog/intel-vllm:0.14.1
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          export UCX_NET_DEVICES="$(rdma link | grep netdev | awk '{print $2}' | cut -d'/' -f1):1"
+          exec vllm serve Qwen/Qwen3-0.6B \
+            --port 8200 \
+            --served-model-name "Qwen/Qwen3-0.6B" \
+            --block-size 64 \
+            --kv-transfer-config '{"kv_connector":"NixlConnector", "kv_role":"kv_both", "kv_buffer_device":"xpu"}' \
+            --disable-uvicorn-access-log \
+            --max-model-len 32000 \
+            --no-enable-prefix-caching
+        env:
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: llm-d-hf-token
+              key: HF_TOKEN
+        - name: UCX_TLS
+          value: "ib,rc,ze_copy"
+        - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: VLLM_NIXL_SIDE_CHANNEL_PORT
+          value: "5500"
+        - name: VLLM_USE_V1
+          value: "1"
+        - name: TORCH_LLM_ALLREDUCE
+          value: "1"
+        - name: VLLM_WORKER_MULTIPROC_METHOD
+          value: "spawn"
+        - name: HTTP_PROXY
+          value: "$HTTP_PROXY"
+        - name: HTTPS_PROXY
+          value: "$HTTPS_PROXY"
+        - name: NO_PROXY
+          value: "$NO_PROXY"
+        - name: VLLM_LOGGING_LEVEL
+          value: "DEBUG"
+        - name: UCX_MEMTYPE_CACHE
+          value: "0"
+        - name: NIXL_TELEMETRY_ENABLE
+          value: "1"
+        - name: ZE_AFFINITY_MASK
+          value: "3"
+        ports:
+        - containerPort: 8200
+          name: vllm
+        - containerPort: 5500
+          name: nixl
+        resources:
+          requests:
+            memory: 64Gi
+            cpu: "8"
+          limits:
+            memory: 64Gi
+            cpu: "16"
+          claims:
+          - name: intel-decode-claim
+        startupProbe:
+          httpGet:
+            path: /v1/models
+            port: 8200
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 60
+        readinessProbe:
+          httpGet:
+            path: /v1/models
+            port: 8200
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        volumeMounts:
+        - name: shm
+          mountPath: /dev/shm
+        securityContext:
+          privileged: true
+          runAsUser: 0
+          runAsGroup: 0
+          capabilities:
+            add: ["IPC_LOCK","NET_ADMIN","SYS_PTRACE","SYS_ADMIN","SYS_RAWIO"]
+      volumes:
+      - name: shm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 16Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-decode
+  namespace: llm-d-pd
+spec:
+  selector:
+    app: vllm-decode
+  ports:
+  - name: vllm
+    port: 8200
+    targetPort: 8200
+  - name: nixl
+    port: 5500
+    targetPort: 5500
