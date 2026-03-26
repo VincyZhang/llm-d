@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
       - name: proxy
-        image: amr-registry.caas.intel.com/aiops/catalog/intel-vllm:0.14.1
+        image: localregistry:port/llm-d-xpu:latest
         command:
         - /bin/bash
         - -c

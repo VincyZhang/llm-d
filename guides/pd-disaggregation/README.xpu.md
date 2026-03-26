@@ -90,15 +90,6 @@ If you need to customize the vLLM version or build the image from source, you ca
 
 ### Build Default Image
 
-#### Intel Data Center GPU Max 1550
-
-```shell
-# Build with default vLLM version (v0.11.0)
-make image-build DEVICE=xpu VERSION=v0.5.0
-```
-
-#### Intel Corporation Battlemage G21
-
 ```shell
 # Build with default vLLM version (v0.11.0)
 git clone https://github.com/vllm-project/vllm.git
