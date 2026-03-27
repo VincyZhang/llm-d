@@ -72,7 +72,7 @@ For non-PD (colocated) baseline sizing:
 
 ### 3.3 Tuning PD Split Ratio
 
-Use above matrix as initial replica ratios, then tune by TTFT/TPOT bottleneck:
+Use above matrix as initial ratios, then tune by TTFT/TPOT bottleneck:
 
 - GLM-4-9B: prefill:decode = 2:1
 - Qwen3-30B-A3B-Instruct-2507: prefill:decode = 2:1, 3:1
@@ -100,44 +100,57 @@ ISL-adaptive profiles:
 |---:|---|---|---:|
 | 1024 | 128, 1024 | 16, 32, 64 | 6 |
 | 2048 | 128, 1024 | 4, 8, 16 | 6 |
+| 4096 | 128, 1024 | 1, 4, 8 | 6 |
 | 8192 | 128 | 1, 4 | 2 |
-| 12288 | 128 | 1 | 1 |
-| 16384 | 128 | 1 | 1 |
-| 32768 | 128 | 1 | 1 |
+| 10240 | 128 | 1, 4 | 2 |
+| 12288 | 128 | 1, 4 | 2 |
+| 16384 | 128 | 1, 4 | 2 |
+| 32768 | 128 | 1, 4 | 2 |
 
-Total logical cases: 17.
+Total logical cases: 28.
 
 Each case runs in 3 modes:
 - baseline (non-pd)
 - baseline-pd
 - llm-d-pd
 
-Total runs: 17 x 3 = 51.
+Total runs: 28 x 3 = 84.
 
-**Test Matrix**:
-Notes:
+### **Test Matrix**:
+
 - Each row defines one logical case.
 - Execute three modes for each row.
 
-| CaseID | ISL | OSL | Concurrency | WarmupReq | MeasuredReq | TimeoutSec | Modes |
-|---|---:|---:|---:|---:|---:|---:|---|
-| TC-001 | 1024 | 128 | 16 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
-| TC-002 | 1024 | 128 | 32 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
-| TC-003 | 1024 | 128 | 64 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
-| TC-004 | 1024 | 1024 | 16 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
-| TC-005 | 1024 | 1024 | 32 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
-| TC-006 | 1024 | 1024 | 64 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
-| TC-007 | 2048 | 128 | 4 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
-| TC-008 | 2048 | 128 | 8 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
-| TC-009 | 2048 | 128 | 16 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
-| TC-010 | 2048 | 1024 | 4 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
-| TC-011 | 2048 | 1024 | 8 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
-| TC-012 | 2048 | 1024 | 16 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
-| TC-013 | 8192 | 128 | 1 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
-| TC-014 | 8192 | 128 | 4 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
-| TC-015 | 12288 | 128 | 1 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
-| TC-016 | 16384 | 128 | 1 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
-| TC-017 | 32768 | 128 | 1 | 30 | 300 | 120 | baseline,baseline-pd,llm-d-pd |
+| CaseID | ISL | OSL | Concurrency | WarmupReq | MeasuredReq | Modes |
+|---|---:|---:|---:|---:|---:|---|
+| TC-001 | 1024 | 128 | 16 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-002 | 1024 | 128 | 32 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-003 | 1024 | 128 | 64 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-004 | 1024 | 1024 | 16 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-005 | 1024 | 1024 | 32 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-006 | 1024 | 1024 | 64 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-007 | 2048 | 128 | 4 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-008 | 2048 | 128 | 8 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-009 | 2048 | 128 | 16 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-010 | 2048 | 1024 | 4 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-011 | 2048 | 1024 | 8 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-012 | 2048 | 1024 | 16 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-013 | 4096 | 128 | 1 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-014 | 4096 | 128 | 4 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-015 | 4096 | 128 | 8 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-016 | 4096 | 1024 | 1 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-017 | 4096 | 1024 | 4 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-018 | 4096 | 1024 | 8 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-019 | 8192 | 128 | 1 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-020 | 8192 | 128 | 4 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-021 | 10240 | 128 | 1 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-022 | 10240 | 128 | 4 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-023 | 12288 | 128 | 1 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-024 | 12288 | 128 | 4 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-025 | 16384 | 128 | 1 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-026 | 16384 | 128 | 4 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-027 | 32768 | 128 | 1 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| TC-028 | 32768 | 128 | 4 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
 
 ## 5. Per-Case Request Template
 
@@ -205,9 +218,9 @@ Crossover region definition:
 
 ## 9. Acceptance Checklist
 
-- [ ] All 17 CaseID completed in baseline.
-- [ ] All 17 CaseID completed in baseline-pd.
-- [ ] All 17 CaseID completed in llm-d-pd.
+- [ ] All 28 CaseID completed in baseline.
+- [ ] All 28 CaseID completed in baseline-pd.
+- [ ] All 28 CaseID completed in llm-d-pd.
 - [ ] No missing required metric fields.
 - [ ] Success rate >= 99% for included crossover analysis.
 - [ ] Crossover summary generated with case IDs.
