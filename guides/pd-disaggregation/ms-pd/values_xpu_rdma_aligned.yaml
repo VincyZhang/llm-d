@@ -1,0 +1,15 @@
+decode:
+  accelerator:
+    type: cpu
+    dra: false
+  resourceClaims:
+    - name: gpu-nic
+      resourceClaimTemplateName: gpu-nic-aligned
+
+prefill:
+  accelerator:
+    type: cpu
+    dra: false
+  resourceClaims:
+    - name: gpu-nic
+      resourceClaimTemplateName: gpu-nic-aligned
