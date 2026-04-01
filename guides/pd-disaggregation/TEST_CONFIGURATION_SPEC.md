@@ -1,4 +1,4 @@
-﻿# TEST CONFIGURATION
+# TEST CONFIGURATION
 
 ## 1. Scope
 
@@ -90,73 +90,110 @@ Tuning rule:
 **Goal**: Find break-even point vs colocated serving across the full ISL/OSL/concurrency parameter space.
 
 Case IDs are generated in nested-loop order:
-1. ISL group
-2. OSL list under that ISL
-3. Concurrency list under that ISL
+1. ISL group: 1k, 2k, 4k, 8k, 10k, 12k, 16k, 32k
+2. OSL list under that ISL: 128, 1k
+3. Concurrency list: increase from 1 to 64 with a fixed step (e.g., 4), then switch to incrementing by step=1 when approaching the TTFT and TPOT SLA thresholds.
 
-ISL-adaptive profiles:
 
-| ISL | OSL | Concurrency | Case Count |
-|---:|---|---|---:|
-| 1024 | 128, 1024 | 16, 32, 64 | 6 |
-| 2048 | 128, 1024 | 4, 8, 16 | 6 |
-| 4096 | 128, 1024 | 1, 4, 8 | 6 |
-| 8192 | 128 | 1, 4 | 2 |
-| 10240 | 128 | 1, 4 | 2 |
-| 12288 | 128 | 1, 4 | 2 |
-| 16384 | 128 | 1, 4 | 2 |
-| 32768 | 128 | 1, 4 | 2 |
+Recommended Test Config for Model **GLM-4-9B**:
 
-Total logical cases: 28.
+| ISL | OSL | Concurrency | TTFT SLA | TPOT SLA | GPU |
+|---:|---:|---|---:|---:|---:|
+| 1024 | 128 | 26, 32 | 500 | 50 | 1P1D |
+| 1024 | 1024 | 18, 24 | 500 | 50 | 1P1D |
+| 2048 | 128 | 14, 16 | 1000 | 50 | 1P1D |
+| 2048 | 1024 | 12, 14 | 1000 | 50 | 1P1D |
+| 4096 | 128 | 6, 8 | 1500 | 50 | 1P1D |
+| 4096 | 1024 | 6, 8 | 1500 | 50 | 1P1D |
+| 8192 | 128 | 2, 4 | 3500 | 50 | 1P1D |
+| 8192 | 1024 | 2, 4 | 3500 | 50 | 1P1D |
+| 10240 | 128 | 1, 4 | N/A | 50 | 1P1D |
+| 12288 | 128 | 1, 4 | N/A | 50 | 1P1D |
+| 16384 | 128 | 1, 4 | N/A | 50 | 1P1D |
+| 32768 | 128 | 1, 4 | N/A | 50 | 1P1D |
+| 1024 | 128 | 48, 50 | 500 | 50 | 2P2D |
+| 1024 | 1024 | 86, 88 | 500 | 50 | 2P2D |
+| 2048 | 128 | 24, 26 | 1000 | 50 | 2P2D |
+| 2048 | 1024 | 48, 56 | 1000 | 50 | 2P2D |
+| 4096 | 128 | 12, 14 | 1500 | 50 | 2P2D |
+| 4096 | 1024 | 28, 32 | 1500 | 50 | 2P2D |
+| 8192 | 128 | 2, 4 | 2500 | 50 | 2P2D |
+| 8192 | 1024 | 2, 4 | 2500 | 50 | 2P2D |
+| 10240 | 128 | 1, 4 | N/A | 50 | 2P2D |
+| 12288 | 128 | 1, 4 | N/A | 50 | 2P2D |
+| 16384 | 128 | 1, 4 | N/A | 50 | 2P2D |
+| 32768 | 128 | 1, 4 | N/A | 50 | 2P2D |
+
+Total logical cases: 48.
 
 Each case runs in 3 modes:
 - baseline (non-pd)
 - baseline-pd
 - llm-d-pd
 
-Total runs: 28 x 3 = 84.
+Total runs: 48 x 3 = 144.
 
 ### **Test Matrix**:
 
 - Each row defines one logical case.
 - Execute three modes for each row.
 
-| CaseID | ISL | OSL | Concurrency | WarmupReq | MeasuredReq | Modes |
-|---|---:|---:|---:|---:|---:|---|
-| TC-001 | 1024 | 128 | 16 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-002 | 1024 | 128 | 32 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-003 | 1024 | 128 | 64 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-004 | 1024 | 1024 | 16 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-005 | 1024 | 1024 | 32 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-006 | 1024 | 1024 | 64 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-007 | 2048 | 128 | 4 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-008 | 2048 | 128 | 8 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-009 | 2048 | 128 | 16 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-010 | 2048 | 1024 | 4 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-011 | 2048 | 1024 | 8 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-012 | 2048 | 1024 | 16 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-013 | 4096 | 128 | 1 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-014 | 4096 | 128 | 4 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-015 | 4096 | 128 | 8 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-016 | 4096 | 1024 | 1 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-017 | 4096 | 1024 | 4 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-018 | 4096 | 1024 | 8 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-019 | 8192 | 128 | 1 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-020 | 8192 | 128 | 4 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-021 | 10240 | 128 | 1 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-022 | 10240 | 128 | 4 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-023 | 12288 | 128 | 1 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-024 | 12288 | 128 | 4 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-025 | 16384 | 128 | 1 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-026 | 16384 | 128 | 4 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-027 | 32768 | 128 | 1 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
-| TC-028 | 32768 | 128 | 4 | 30 | 300 | baseline,baseline-pd,llm-d-pd |
+| CaseID | ISL | OSL | Concurrency | PD-GPUs | baseline-GPUs | WarmupReq | MeasuredReq |
+|---|---:|---:|---:|---|---|---:|---:|
+| TC-001 | 1024 | 128 | 26 | 1P1D | 1*TP2 | 30 | 300 |
+| TC-002 | 1024 | 128 | 32 | 1P1D | 1*TP2 | 30 | 300 |
+| TC-003 | 1024 | 1024 | 18 | 1P1D | 1*TP2 | 30 | 300 |
+| TC-004 | 1024 | 1024 | 24 | 1P1D | 1*TP2 | 30 | 300 |
+| TC-005 | 2048 | 128 | 14 | 1P1D | 1*TP2 | 30 | 300 |
+| TC-006 | 2048 | 128 | 16 | 1P1D | 1*TP2 | 30 | 300 |
+| TC-007 | 2048 | 1024 | 12 | 1P1D | 1*TP2 | 30 | 300 |
+| TC-008 | 2048 | 1024 | 14 | 1P1D | 1*TP2 | 30 | 300 |
+| TC-009 | 4096 | 128 | 6 | 1P1D | 1*TP2 | 30 | 300 |
+| TC-010 | 4096 | 128 | 8 | 1P1D | 1*TP2 | 30 | 300 |
+| TC-011 | 4096 | 1024 | 6 | 1P1D | 1*TP2 | 30 | 300 |
+| TC-012 | 4096 | 1024 | 8 | 1P1D | 1*TP2 | 30 | 300 |
+| TC-013 | 8192 | 128 | 2 | 1P1D | 1*TP2 | 30 | 300 |
+| TC-014 | 8192 | 128 | 4 | 1P1D | 1*TP2 | 30 | 300 |
+| TC-015 | 8192 | 1024 | 2 | 1P1D | 1*TP2 | 30 | 300 |
+| TC-016 | 8192 | 1024 | 4 | 1P1D | 1*TP2 | 30 | 300 |
+| TC-017 | 10240 | 128 | 1 | 1P1D | 1*TP2 | 30 | 300 |
+| TC-018 | 10240 | 128 | 4 | 1P1D | 1*TP2 | 30 | 300 |
+| TC-019 | 12288 | 128 | 1 | 1P1D | 1*TP2 | 30 | 300 |
+| TC-020 | 12288 | 128 | 4 | 1P1D | 1*TP2 | 30 | 300 |
+| TC-021 | 16384 | 128 | 1 | 1P1D | 1*TP2 | 30 | 300 |
+| TC-022 | 16384 | 128 | 4 | 1P1D | 1*TP2 | 30 | 300 |
+| TC-023 | 32768 | 128 | 1 | 1P1D | 1*TP2 | 30 | 300 |
+| TC-024 | 32768 | 128 | 4 | 1P1D | 1*TP2 | 30 | 300 |
+| TC-025 | 1024 | 128 | 48 | 2P2D | 2*TP2 | 30 | 300 |
+| TC-026 | 1024 | 128 | 50 | 2P2D | 2*TP2 | 30 | 300 |
+| TC-027 | 1024 | 1024 | 86 | 2P2D | 2*TP2 | 30 | 300 |
+| TC-028 | 1024 | 1024 | 88 | 2P2D | 2*TP2 | 30 | 300 |
+| TC-029 | 2048 | 128 | 24 | 2P2D | 2*TP2 | 30 | 300 |
+| TC-030 | 2048 | 128 | 26 | 2P2D | 2*TP2 | 30 | 300 |
+| TC-031 | 2048 | 1024 | 48 | 2P2D | 1*TP4 | 30 | 300 |
+| TC-032 | 2048 | 1024 | 56 | 2P2D | 1*TP4 | 30 | 300 |
+| TC-033 | 4096 | 128 | 12 | 2P2D | 2*TP2 | 30 | 300 |
+| TC-034 | 4096 | 128 | 14 | 2P2D | 2*TP2 | 30 | 300 |
+| TC-035 | 4096 | 1024 | 28 | 2P2D | 1*TP4 | 30 | 300 |
+| TC-036 | 4096 | 1024 | 32 | 2P2D | 1*TP4 | 30 | 300 |
+| TC-037 | 8192 | 128 | 2 | 2P2D | 2*TP2 | 30 | 300 |
+| TC-038 | 8192 | 128 | 4 | 2P2D | 2*TP2 | 30 | 300 |
+| TC-039 | 8192 | 1024 | 2 | 2P2D | 2*TP2 | 30 | 300 |
+| TC-040 | 8192 | 1024 | 4 | 2P2D | 2*TP2 | 30 | 300 |
+| TC-041 | 10240 | 128 | 1 | 2P2D | 2*TP2 | 30 | 300 |
+| TC-042 | 10240 | 128 | 4 | 2P2D | 2*TP2 | 30 | 300 |
+| TC-043 | 12288 | 128 | 1 | 2P2D | 2*TP2 | 30 | 300 |
+| TC-044 | 12288 | 128 | 4 | 2P2D | 2*TP2 | 30 | 300 |
+| TC-045 | 16384 | 128 | 1 | 2P2D | 2*TP2 | 30 | 300 |
+| TC-046 | 16384 | 128 | 4 | 2P2D | 2*TP2 | 30 | 300 |
+| TC-047 | 32768 | 128 | 1 | 2P2D | 2*TP2 | 30 | 300 |
+| TC-048 | 32768 | 128 | 4 | 2P2D | 2*TP2 | 30 | 300 |
 
 ## 5. Per-Case Request Template
 
 ```json
 {
-  "model": "meta-llama/Llama-3.3-70B-Instruct",
+  "model": "GLM-4-9B",
   "messages": [
     {"role": "user", "content": "<PROMPT_WITH_EXACT_ISL_TOKENS>"}
   ],
@@ -218,9 +255,9 @@ Crossover region definition:
 
 ## 9. Acceptance Checklist
 
-- [ ] All 28 CaseID completed in baseline.
-- [ ] All 28 CaseID completed in baseline-pd.
-- [ ] All 28 CaseID completed in llm-d-pd.
+- [ ] All 48 CaseID completed in baseline.
+- [ ] All 48 CaseID completed in baseline-pd.
+- [ ] All 48 CaseID completed in llm-d-pd.
 - [ ] No missing required metric fields.
 - [ ] Success rate >= 99% for included crossover analysis.
 - [ ] Crossover summary generated with case IDs.
