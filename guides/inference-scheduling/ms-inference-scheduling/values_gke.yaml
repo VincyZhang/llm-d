@@ -1,34 +1,39 @@
 multinode: false
 
+# Distributed tracing configuration (OpenTelemetry)
+# tracing:
+#   enabled: true
+#   otlpEndpoint: "http://otel-collector:4317"
+#   sampling:
+#     sampler: "parentbased_traceidratio"
+#     samplerArg: "0.1"
+
 modelArtifacts:
-  uri: "hf://Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8"
-  size: 700Gi
+  uri: "hf://Qwen/Qwen3-32B"
+  name: "Qwen/Qwen3-32B"
+  size: 80Gi
   authSecretName: "llm-d-hf-token"
-  name: Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8
   labels:
     llm-d.ai/inference-serving: "true"
     llm-d.ai/guide: "inference-scheduling"
-    llm-d.ai/hardware-variant: "tpu"
-    llm-d.ai/hardware-vendor: "google"
-    llm-d.ai/model: Qwen3-Coder-480B-A35B-Instruct-FP8
+    llm-d.ai/accelerator-variant: "gpu"
+    llm-d.ai/accelerator-vendor: "nvidia"
+    llm-d.ai/model: "Qwen3-32B"
 
 routing:
   proxy:
     enabled: false  # removes sidecar from deployment - no PD in inference scheduling
     targetPort: 8000  # controls vLLM port to matchup with sidecar if deployed
 
-accelerator:
-  type: "google"
+accelerator:  # controls specialized hardware Type
+  type: nvidia
 
 decode:
-  parallelism:
-    tensor: 8
   create: true
-  replicas: 2
-  extraConfig:
-    nodeSelector:
-      cloud.google.com/gke-tpu-topology: "2x2x1"
-      cloud.google.com/gke-tpu-accelerator: "tpu7x"
+  parallelism:
+    tensor: 2
+    data: 1
+  replicas: 4
   monitoring:
     podmonitor:
       enabled: true
@@ -37,33 +42,38 @@ decode:
       interval: "30s"
   containers:
     - name: "vllm"
-      image: "vllm/vllm-tpu:v0.13.2-ironwood"
-      modelCommand: vllmServe
-      args:
-        - --data-parallel-size=1
-        - --max-model-len=9216
-        - --max-num-batched-tokens=1028
-        - --max-num-seqs=128
-        - --kv-cache-dtype=fp8
-        - --async-scheduling
-        - --gpu-memory-utilization=0.93
+      image: ghcr.io/llm-d/llm-d-cuda:v0.5.1
+      modelCommand: custom # Use custom command
+      command:
+         - /bin/bash
+         - -c
+      args: 
+        - |
+          export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/cuda-12.9/compat
+          vllm serve Qwen/Qwen3-32B \
+          --disable-uvicorn-access-log \
+          --tensor-parallel-size $TP_SIZE \
+          --gpu-memory-utilization=0.95
+        # - "--tensor-parallel-size=2" # added automatically from 'parallelism'
       ports:
         - containerPort: 8000
           name: vllm
           protocol: TCP
       resources:
         limits:
-          memory: 64Gi
-          cpu: "16"
-          google.com/tpu: 4
+          # nvidia.com/gpu: '2' # added automatically from 'parallelism'
+          cpu: '32'
+          memory: 100Gi
         requests:
-          memory: 64Gi
-          cpu: "16"
-          google.com/tpu: 4
+          # nvidia.com/gpu: '2' # added automatically from 'parallelism'
+          cpu: '32'
+          memory: 100Gi
       mountModelVolume: true
       volumeMounts:
         - name: metrics-volume
           mountPath: /.config
+        - name: shm
+          mountPath: /dev/shm
         - name: torch-compile-cache
           mountPath: /.cache
       startupProbe:
@@ -73,7 +83,7 @@ decode:
         initialDelaySeconds: 15
         periodSeconds: 30
         timeoutSeconds: 5
-        failureThreshold: 60
+        failureThreshold: 120
       livenessProbe:
         httpGet:
           path: /health
@@ -93,6 +103,11 @@ decode:
       emptyDir: {}
     - name: torch-compile-cache
       emptyDir: {}
+    - name: shm
+      emptyDir:
+        medium: Memory
+        sizeLimit: 20Gi
 
+# PD disabled in this example
 prefill:
   create: false

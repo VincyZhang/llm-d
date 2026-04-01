@@ -24,7 +24,7 @@ Model servers like [vLLM](https://docs.vllm.ai) and [SGLang](https://github.com/
 2. [Disaggregated Serving (prefill/decode disaggregation)](./guides/pd-disaggregation/README.md) - Reduce time to first token (TTFT) and get more predictable time per output token (TPOT) by splitting inference into prefill servers handling prompts and decode servers handling responses, primarily on large models such as gpt-oss-120b and when processing very long prompts.
 3. [Wide Expert-Parallelism](./guides/wide-ep-lws/README.md) - Deploy very large Mixture-of-Experts (MoE) models like [DeepSeek-R1](https://github.com/vllm-project/vllm/issues/16037) for much higher throughput for RL and latency-insensitive workloads, using [Data Parallelism and Expert Parallelism](https://docs.vllm.ai/en/latest/serving/data_parallel_deployment.html) over fast accelerator networks.
 4. [Tiered KV Prefix Caching with CPU and Storage Offload](./guides/tiered-prefix-cache/README.md) - Improve prefix cache hit rate by offloading KV-cache entries to CPU memory, local SSD, and remote high-performance filesystem storage.
-5. [Dynamic Multi-Workload Autoscaling](./guides/workload-autoscaling/README.md) - Autoscale multiple model workloads on a shared hardware pool without violating service level objectives.
+5. [Workload Autoscaling](./guides/workload-autoscaling/README.md) - Autoscale multi-model workloads on heterogeneous shared hardware with SLO-aware cost optimization using the [Workload Variant Autoscaler](./guides/workload-autoscaling/README.wva.md) or autoscale workloads on homogeneous hardware where each model scales independently using [HPA with IGW metrics](./guides/workload-autoscaling/README.hpa-igw.md).
 
 These [guides](./guides/README.md) provide tested and benchmarked recipes and Helm charts to start serving quickly with best practices common to production deployments. They are extensible and customizable for particulars of your models and use cases, using standard open source components like Kubernetes, Envoy proxy, NIXL, and vLLM. Our intent is to eliminate the heavy lifting common in tuning and deploying generative AI inference on modern accelerators.
 
@@ -52,7 +52,7 @@ llm-d accelerates distributed inference by integrating industry-standard open te
   </picture>
 </p>
 
- llm-d adds:
+### llm-d adds:
 
 - [**Model Server Optimizations in vLLM:**](https://github.com/vllm-project/vllm) The llm-d team contributes and maintains high performance distributed serving optimizations in upstream vLLM, including disaggregated serving, KV connector interfaces, support for frontier OSS mixture of experts models, and production-ready observability and resiliency. 
 
@@ -60,7 +60,7 @@ llm-d accelerates distributed inference by integrating industry-standard open te
 
 - [**Disaggregated Serving Sidecar:**](https://github.com/llm-d/llm-d-inference-scheduler/tree/main/cmd/pd-sidecar) llm-d orchestrates prefill and decode phases onto independent instances - the scheduler decides which instances should receive a given request, and the transaction is coordinated via a sidecar alongside decode instances. The sidecar instructs vLLM to provide point to point KV cache transfer over fast interconnects (IB/RoCE RDMA, TPU ICI, and DCN) via NIXL.
 
-- [**vLLM Native CPU Offloading**](https://docs.vllm.ai/en/latest/examples/offline_inference/basic/#cpu-offload) and [**llm-d filesystem backend**:](https://github.com/llm-d/llm-d-kv-cache/tree/main/kv_connectors/llmd_fs_backend) llm-d uses vLLM's KVConnector abstraction to configure a pluggable KV cache hierarchy, including offloading KVs to host, remote storage, and systems like LMCache, Mooncake, and KVBM. 
+- [**vLLM Native CPU Offloading**](https://docs.vllm.ai/en/latest/examples/basic/offline_inference/#cpu-offload) and [**llm-d filesystem backend**:](https://github.com/llm-d/llm-d-kv-cache/tree/main/kv_connectors/llmd_fs_backend) llm-d uses vLLM's KVConnector abstraction to configure a pluggable KV cache hierarchy, including offloading KVs to host, remote storage, and systems like LMCache, Mooncake, and KVBM. 
 
 - [**Variant Autoscaling over Hardware, Workload, and Traffic**](https://github.com/llm-d-incubation/ig-wva): A traffic- and hardware-aware autoscaler that (a) measures the capacity of each model server instance, (b) derive a load function that takes into account different request shapes and QoS, and (c) assesses recent traffic mix (QPS, QoS, and shapes) to calculate the optimal mix of instances to handle prefill, decode, and latency-tolerant requests, enabling use of HPA for SLO-level efficiency.
 
@@ -68,7 +68,7 @@ For more details of architecture see the [project proposal](./docs/proposals/llm
 
 ### What is in scope for llm-d
 
-`llm-d` currently targets improving the production serving experience around:
+llm-d currently targets improving the production serving experience around:
 
 - Online serving and online batch of Generative models running in PyTorch or JAX
   - Large language models (LLMs) with 1 billion or more parameters
@@ -78,6 +78,11 @@ For more details of architecture see the [project proposal](./docs/proposals/llm
 - On Kubernetes 1.29+, integrated via code into [Ray](https://docs.ray.io), or as a standalone service
 
 See the [accelerator docs](./docs/accelerators/README.md) for points of contact for more details about the accelerators, networks, and configurations tested and our [roadmap](https://github.com/llm-d/llm-d/issues/146) for what is coming next.
+
+## 🔍 Observability
+
+- [Monitoring & Metrics](./docs/monitoring/README.md) - Prometheus, Grafana dashboards, and PromQL queries
+- [Distributed Tracing](./docs/monitoring/tracing/README.md) - OpenTelemetry tracing across vLLM, routing proxy, and EPP
 
 ## 📦 Releases
 

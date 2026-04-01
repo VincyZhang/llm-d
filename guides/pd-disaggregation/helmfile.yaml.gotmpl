@@ -25,6 +25,8 @@ environments:
     <<: *XPU
   hpu: &HPU
     <<: *I
+  ocp: &OCP
+    <<: *I
   aks: &AKS
     <<: *I
   default:
@@ -45,7 +47,7 @@ releases:
   - name: {{ printf "infra-%s" $rn | quote }}
     namespace: {{ $ns }}
     chart: llm-d-infra/llm-d-infra
-    version: v1.3.6
+    version: v1.4.0
     installed: true
     labels:
       type: infrastructure
@@ -57,7 +59,7 @@ releases:
   - name: {{ printf "gaie-%s" $rn | quote }}
     namespace: {{ $ns }}
     chart: oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool
-    version: v1.3.0
+    version: v1.4.0
     installed: true
     needs:
       - {{ printf "infra-%s" $rn | quote }}
@@ -73,7 +75,7 @@ releases:
               enabled: true
     {{- end }}
     # Apply destination rule for anything istio
-    {{- if or (eq .Environment.Name "istio") (eq .Environment.Name "default") (eq .Environment.Name "aks") (eq .Environment.Name "amd") (eq .Environment.Name "xpu") (eq .Environment.Name "xpu_rdma") (eq .Environment.Name "hpu") }}
+    {{- if or (eq .Environment.Name "istio") (eq .Environment.Name "default") (eq .Environment.Name "aks") (eq .Environment.Name "amd") (eq .Environment.Name "xpu") (eq .Environment.Name "xpu_rdma") (eq .Environment.Name "hpu") (eq .Environment.Name "ocp") }}
       - provider:
           name: {{ .Environment.Values.provider.name }}
           istio:
@@ -94,7 +96,7 @@ releases:
   - name: {{ printf "ms-%s" $rn | quote }}
     namespace: {{ $ns }}
     chart: llm-d-modelservice/llm-d-modelservice
-    version: v0.4.6
+    version: v0.4.9
     installed: true
     needs:
       - {{ printf "infra-%s" $rn | quote }}
@@ -108,6 +110,8 @@ releases:
       - ms-pd/values_xpu_rdma.yaml
     {{- else if eq .Environment.Name "hpu" }}
       - ms-pd/values_hpu.yaml
+    {{- else if eq .Environment.Name "ocp" }}
+      - ms-pd/values_ocp_rdma.yaml
     {{- else if eq .Environment.Name "gke_tpu" }}
       - ms-pd/values_tpu.yaml
     {{- else if eq .Environment.Name "gke_pd_rdma" }}

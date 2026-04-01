@@ -88,8 +88,11 @@ helmfile apply -e hpu -n ${NAMESPACE}
 To see specify your gateway choice you can use the `-e <gateway option>` flag, ex:
 
 ```bash
-helmfile apply -e kgateway -n ${NAMESPACE}
+helmfile apply -e agentgateway -n ${NAMESPACE} # preferred agentgateway path
+helmfile apply -e kgateway -n ${NAMESPACE}     # deprecated migration path
 ```
+
+**_WARNING:_** `kgateway` is deprecated in llm-d and will be removed in the next release. Prefer `agentgateway` for new self-installed inference deployments.
 
 To see what gateway options are supported refer to our [gateway provider prereq doc](../prereq/gateway-provider/README.md#supported-providers). Gateway configurations per provider are tracked in the [gateway-configurations directory](../prereq/gateway-provider/common-configurations/).
 
@@ -103,7 +106,7 @@ This guide uses RDMA via InfiniBand or RoCE for disaggregated serving kv-cache t
 
 Follow provider specific instructions for installing HTTPRoute.
 
-#### Install for "kgateway" or "istio"
+#### Install for "agentgateway", "kgateway" (deprecated), or "istio"
 
 ```bash
 kubectl apply -f httproute.yaml -n ${NAMESPACE}
@@ -122,9 +125,9 @@ kubectl apply -f httproute.gke.yaml -n ${NAMESPACE}
 ```bash
 helm list -n ${NAMESPACE}
 NAME        NAMESPACE   REVISION    UPDATED                                 STATUS      CHART                       APP VERSION
-gaie-pd     llm-d-pd    1           2025-08-24 12:54:51.231537 -0700 PDT    deployed    inferencepool-v1.3.0        v1.3.0
-infra-pd    llm-d-pd    1           2025-08-24 12:54:46.983361 -0700 PDT    deployed    llm-d-infra-v1.3.6          v0.3.0
-ms-pd       llm-d-pd    1           2025-08-24 12:54:56.736873 -0700 PDT    deployed    llm-d-modelservice-v0.4.5   v0.4.0
+gaie-pd     llm-d-pd    1           2025-08-24 12:54:51.231537 -0700 PDT    deployed    inferencepool-v1.4.0        v1.4.0
+infra-pd    llm-d-pd    1           2025-08-24 12:54:46.983361 -0700 PDT    deployed    llm-d-infra-v1.4.0          v0.4.0
+ms-pd       llm-d-pd    1           2025-08-24 12:54:56.736873 -0700 PDT    deployed    llm-d-modelservice-v0.4.7   v0.4.0
 ```
 
 * Out of the box with this example you should have the following resources:
@@ -181,7 +184,7 @@ Some examples in which you might want to do selective PD might include:
 * When the prompt is short enough that the amount of work split inference into prefill and decode phases, and then open a kv transfer between those two GPUs is greater than the amount of work to do both phases on the same decode inference worker.
 * When Prefill units are at full capacity.
 
-For information on this plugin, see our [`pd-profile-handler` docs in the inference-scheduler](https://github.com/llm-d/llm-d-inference-scheduler/blob/v0.5.0/docs/architecture.md?plain=1#L205-L210)
+For information on this plugin, see our [`pd-profile-handler` docs in the inference-scheduler](https://github.com/llm-d/llm-d-inference-scheduler/blob/v0.5.1/docs/architecture.md?plain=1#L205-L210)
 
 ## Benchmarking
 
@@ -251,12 +254,13 @@ We use the [inference-perf](https://github.com/kubernetes-sigs/inference-perf/tr
 export GATEWAY_IP=$(kubectl get gateway/llm-d-inference-gateway -n ${NAMESPACE} -o jsonpath='{.status.addresses[0].value}')
 ```
 
-The `GATEWAY_IP` environment variable will be used in the [benchmark template](../benchmark/pd_template.yaml).
+The `GATEWAY_IP` environment variable will be used in the [benchmark template](./benchmark-templates/guide.yaml).
 
 2. Follow the [benchmark guide](../../guides/benchmark/README.md) to deploy the benchmark tool and analyze the benchmark results. Notably, select the corresponding benchmark template:
 
-```
-export BENCHMARK_TEMPLATE="${BENCH_TEMPLATE_DIR}"/pd_template.yaml
+```bash
+export BENCH_TEMPLATE_DIR="${LLMD_ROOT_DIR}"/guides/pd-disaggregation/benchmark-templates
+export BENCHMARK_TEMPLATE="${BENCH_TEMPLATE_DIR}"/guide.yaml
 ```
 
 ### Results
@@ -443,7 +447,7 @@ helm uninstall infra-pd -n ${NAMESPACE}
 
 Follow provider specific instructions for deleting HTTPRoute.
 
-#### Cleanup for "kgateway" or "istio"
+#### Cleanup for "agentgateway", "kgateway" (deprecated), or "istio"
 
 ```bash
 kubectl delete -f httproute.yaml -n ${NAMESPACE}

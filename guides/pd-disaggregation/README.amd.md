@@ -102,7 +102,7 @@ RIXL uses the UCX library as its underlying transport mechanism for KV transfers
 **Network & Transport Tuning**
 Use these variables to specify how and where data travels across your hardware:
 * UCX_TLS: Defines the allowed Transport Layer protocols (e.g., tcp, rc, ud, sm).
-* UCX_IB_GID_INDEX: Specifies the Global IDentifier (GID) index for InfiniBand or RoCE devices.
+* UCX_IB_GID_INDEX: Specifies the Global Identifier (GID) index for InfiniBand or RoCE devices.
 * UCX_IB_TRAFFIC_CLASS: Specifies the KV transfer traffic class to use for InfiniBand or RoCE devices.
 
 **Debugging & Logging**
@@ -118,8 +118,11 @@ For more UCX customizations, please refer to the [UCX documentation](https://ope
 To specify your gateway choice, you can use the `-e <gateway option>` flag, ex:
 
 ```bash
-helmfile apply -e kgateway -n ${NAMESPACE}
+helmfile apply -e agentgateway -n ${NAMESPACE} # preferred agentgateway path
+helmfile apply -e kgateway -n ${NAMESPACE}     # deprecated migration path
 ```
+
+**_WARNING:_** `kgateway` is deprecated in llm-d and will be removed in the next release. Prefer `agentgateway` for new self-installed inference deployments.
 
 To see what gateway options are supported refer to our [gateway provider prereq doc](../prereq/gateway-provider/README.md#supported-providers). Gateway configurations per provider are tracked in the [gateway-configurations directory](../prereq/gateway-provider/common-configurations/).
 
@@ -133,7 +136,7 @@ This guide uses RDMA via RoCE for disaggregated serving kv-cache transfer. The r
 
 Follow provider specific instructions for installing HTTPRoute.
 
-#### Install for "kgateway" or "istio"
+#### Install for "agentgateway", "kgateway" (deprecated), or "istio"
 
 ```bash
 kubectl apply -f httproute.yaml -n ${NAMESPACE}
@@ -146,9 +149,9 @@ kubectl apply -f httproute.yaml -n ${NAMESPACE}
 ```bash
 helm list -n ${NAMESPACE}
 NAME        NAMESPACE   REVISION    UPDATED                                 STATUS      CHART                       APP VERSION
-gaie-pd     llm-d-pd    1           2026-02-04 16:08:57.461356878 +0000 UTC deployed    inferencepool-v1.2.0        v1.2.0     
-infra-pd    llm-d-pd    1           2026-02-04 16:08:56.394680393 +0000 UTC deployed    llm-d-infra-v1.3.6          v0.3.0     
-ms-pd       llm-d-pd    1           2026-02-04 16:08:59.144726828 +0000 UTC deployed    llm-d-modelservice-v0.3.17  v0.3.0   
+gaie-pd     llm-d-pd    1           2026-02-04 16:08:57.461356878 +0000 UTC deployed    inferencepool-v1.4.0   v1.4.0
+infra-pd    llm-d-pd    1           2026-02-04 16:08:56.394680393 +0000 UTC deployed    llm-d-infra-v1.4.0          v0.4.0
+ms-pd       llm-d-pd    1           2026-02-04 16:08:59.144726828 +0000 UTC deployed    llm-d-modelservice-v0.4.7   v0.4.0   
 ```
 
 * Out of the box with the example you should have the following resources:
@@ -223,7 +226,7 @@ helmfile destroy -n ${NAMESPACE}
 
 Follow provider specific instructions for deleting HTTPRoute.
 
-#### Cleanup for "kgateway" or "istio"
+#### Cleanup for "agentgateway", "kgateway" (deprecated), or "istio"
 
 ```bash
 kubectl delete -f httproute.yaml -n ${NAMESPACE}
