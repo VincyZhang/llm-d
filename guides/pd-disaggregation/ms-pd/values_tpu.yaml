@@ -1,5 +1,13 @@
 multinode: false
 
+# Distributed tracing configuration (OpenTelemetry)
+# tracing:
+#   enabled: true
+#   otlpEndpoint: "http://otel-collector:4317"
+#   sampling:
+#     sampler: "parentbased_traceidratio"
+#     samplerArg: "0.1"
+
 # Configure accelerator type for Google TPU
 accelerator:
   type: google
@@ -19,7 +27,7 @@ modelArtifacts:
 routing:
   servicePort: 8000
   proxy:
-    image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.5.0
+    image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.6.0
     connector: nixlv2
     secure: false
 
@@ -68,7 +76,7 @@ decode:
           name: tpu-kv-transfer
           protocol: TCP
         - containerPort: 9600
-          name: tpu-pd-coordination
+          name: tpu-pd-coord
           protocol: TCP
       resources:
         limits:
@@ -163,7 +171,7 @@ prefill:
           name: tpu-kv-transfer
           protocol: TCP
         - containerPort: 9600
-          name: tpu-pd-coordination
+          name: tpu-pd-coord
           protocol: TCP
       resources:
         limits:

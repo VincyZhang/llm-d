@@ -94,24 +94,30 @@ If you need to customize the vLLM version or build the image from source, you ca
 #### Intel Data Center GPU Max 1550
 
 ```shell
-# Build with default vLLM version (v0.11.0)
-make image-build DEVICE=xpu VERSION=v0.5.0
+# Build with the default vLLM version from docker/common-versions
+make image-build DEVICE=xpu VERSION=v0.5.1
 ```
 
 #### Intel Corporation Battlemage G21
 
 ```shell
-# Build with default vLLM version (v0.11.0)
+# Build directly from the upstream vLLM Dockerfile.xpu
 git clone https://github.com/vllm-project/vllm.git
-git checkout v0.11.0
-docker build -f docker/Dockerfile.xpu -t ghcr.io/llm-d/llm-d-xpu-dev:v0.5.0 --shm-size=4g .
+cd vllm
+git checkout v0.15.1
+docker build -f docker/Dockerfile.xpu -t ghcr.io/llm-d/llm-d-xpu-dev:v0.5.1 --shm-size=4g .
 ```
 
 ### Available Build Arguments
 
-* `VLLM_VERSION`: vLLM version to build (default: v0.11.0)
-* `PYTHON_VERSION`: Python version (default: 3.12)
-* `ONEAPI_VERSION`: Intel OneAPI toolkit version (default: 2025.1.3-0)
+The upstream vLLM Dockerfile.xpu defines the build arguments. Common ones include:
+
+* `PYTHON_VERSION`
+* `PIP_EXTRA_INDEX_URL`
+* `UCX_VERSION`
+* `NIXL_VERSION`
+
+Refer to <https://github.com/vllm-project/vllm/blob/main/docker/Dockerfile.xpu> for the full list.
 
 **⚠️ Important**:
 
@@ -163,7 +169,7 @@ If you built the Intel XPU image in Step 0, load it into the Kind cluster:
 
 ```shell
 # Load the built image into Kind cluster
-kind load docker-image ghcr.io/llm-d/llm-d-xpu:v0.5.0 --name llm-d-cluster
+kind load docker-image ghcr.io/llm-d/llm-d-xpu:v0.5.1 --name llm-d-cluster
 
 # Or if you built with custom tag
 kind load docker-image llm-d:custom-xpu --name llm-d-cluster
@@ -258,9 +264,9 @@ Expected output:
 
 ```text
 NAME       NAMESPACE   REVISION   STATUS     CHART
-gaie-pd    llm-d-pd    1          deployed   inferencepool-v0.5.1
-infra-pd   llm-d-pd    1          deployed   llm-d-infra-v1.3.0
-ms-pd      llm-d-pd    1          deployed   llm-d-modelservice-v0.2.11
+gaie-pd    llm-d-pd    1          deployed   inferencepool-v1.4.0
+infra-pd   llm-d-pd    1          deployed   llm-d-infra-v1.4.0
+ms-pd      llm-d-pd    1          deployed   llm-d-modelservice-v0.4.7
 ```
 
 ### Check All Resources

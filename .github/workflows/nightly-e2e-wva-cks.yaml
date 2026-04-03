@@ -68,13 +68,13 @@ jobs:
       image_tag: ${{ steps.build.outputs.image_tag }}
     steps:
       - name: Checkout WVA source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: llm-d/llm-d-workload-variant-autoscaler
           ref: ${{ github.event.inputs.caller_ref || 'main' }}
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 

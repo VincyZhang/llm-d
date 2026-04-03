@@ -1,18 +1,22 @@
 inferenceExtension:
   replicas: 1
   flags:
-    # in vLLM 10.0+, the metric is renamed while upstream GAIE is still using the old name as default.
-    # See https://github.com/kubernetes-sigs/gateway-api-inference-extension/pull/1905.
-    kv-cache-usage-percentage-metric: "vllm:kv_cache_usage_perc"
   image:
     # both downstream inference-scheduler and upstream epp image can support workload-autoscaling example
     ###################
     name: llm-d-inference-scheduler
     hub: ghcr.io/llm-d
-    tag: v0.5.0
+    tag: v0.6.0
     pullPolicy: Always
   extProcPort: 9002
   pluginsConfigFile: "default-plugins.yaml"
+  # Distributed tracing configuration (OpenTelemetry)
+  tracing:
+    enabled: false
+    # otelExporterEndpoint: "http://otel-collector:4317"
+    # sampling:
+    #   sampler: "parentbased_traceidratio"
+    #   samplerArg: "0.1"
   monitoring:
     interval: "10s"
     # Prometheus ServiceMonitor will be created when enabled for EPP metrics collection
