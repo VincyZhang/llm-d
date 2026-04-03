@@ -31,6 +31,23 @@ Before using RDMA deployment, ensure all of the following are true:
 - Keep namespace consistent (`ResourceClaimTemplate` must exist in deployment namespace).
 - If your cluster uses a different RDMA DeviceClass name (e.g. `rdma-net`), update `deviceClassName` accordingly.
 
+If `rdma-dranet` `DeviceClass` does not exist, create it first:
+
+```bash
+kubectl apply -f - <<'EOF'
+apiVersion: resource.k8s.io/v1
+kind: DeviceClass
+metadata:
+  name: rdma-dranet
+spec:
+  selectors:
+    - cel:
+        expression: device.driver == "dra.net"
+    - cel:
+        expression: device.attributes["dra.net"].rdma == true
+EOF
+```
+
 Install DRANET and verify the resources are created:
 
 
@@ -54,6 +71,7 @@ kubectl get deviceclass rdma-dranet
 ```
 
 If these checks fail, `kubectl apply -f ms-pd/rdma-resource-claims.yaml` may fail, or pods may stay Pending due to unsatisfied device requests.
+
 
 ### Client Setup
 

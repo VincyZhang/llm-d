@@ -48,7 +48,7 @@ decode:
       command: ["/bin/bash", "-c"]
       args:
         - |
-          export UCX_NET_DEVICES="$(rdma link | awk '/netdev/ { split($2,a,"/"); dev=a[1]":1"; if (list=="") list=dev; else list=list","dev } END { print list }')"
+          export UCX_NET_DEVICES="$(rdma link | awk '/^link/ { split($2,a,"/"); dev=a[1]":1"; if (list=="") list=dev; else list=list","dev } END { print list }')"
           exec vllm serve Qwen/Qwen3-0.6B \
             --port 8200 \
             --served-model-name "Qwen/Qwen3-0.6B" \
@@ -169,7 +169,7 @@ prefill:
       command: ["/bin/bash", "-c"]
       args:
         - |
-          export UCX_NET_DEVICES="$(rdma link | awk '/netdev/ { split($2,a,"/"); dev=a[1]":1"; if (list=="") list=dev; else list=list","dev } END { print list }')"
+          export UCX_NET_DEVICES="$(rdma link | awk '/^link/ { split($2,a,"/"); dev=a[1]":1"; if (list=="") list=dev; else list=list","dev } END { print list }')"
           exec vllm serve Qwen/Qwen3-0.6B \
             --port 8000 \
             --served-model-name "Qwen/Qwen3-0.6B" \
