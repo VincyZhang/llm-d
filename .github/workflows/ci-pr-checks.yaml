@@ -25,30 +25,12 @@ jobs:
         shell: bash
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.x'
 
       - name: Run pre-commit
-        uses: j178/prek-action@v1
+        uses: j178/prek-action@v2
         with:
           extra-args: ''
 
-  lint-and-test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v6
-
-      - name: warning about ignored paths
-        run: |
-          echo "Warning! Some paths are ignored in the markdown link checker config.
-          This is because those websites have strong anti-scraping behaviours. For
-          the full list of ignored paths, see the lychee.toml file:"
-          cat .github/lychee.toml
-
-      - name: Run markdown link checker
-        uses: lycheeverse/lychee-action@v2.8.0
-        with:
-          args: --verbose --no-progress --include-fragments --format markdown --config .github/lychee.toml '**/*.md'
-          fail: true

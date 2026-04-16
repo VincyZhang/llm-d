@@ -1,5 +1,7 @@
 # Well-lit Path: Wide Expert Parallelism (EP/DP) with LeaderWorkerSet
 
+[![Nightly - Wide EP LWS E2E (OpenShift)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-wide-ep-lws-ocp.yaml/badge.svg)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-wide-ep-lws-ocp.yaml) [![Nightly - Wide EP LWS E2E (CKS)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-wide-ep-lws-cks.yaml/badge.svg)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-wide-ep-lws-cks.yaml) [![Nightly - Wide EP LWS E2E (GKE)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-wide-ep-lws-gke.yaml/badge.svg)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-wide-ep-lws-gke.yaml)
+
 ## Overview
 
 This guide demonstrates how to deploy DeepSeek-R1-0528 using vLLM's P/D disaggregation support with NIXL in a wide expert parallel pattern with LeaderWorkerSets. This guide has been validated on:
@@ -19,15 +21,17 @@ In this example, we will demonstrate a deployment of `DeepSeek-R1-0528` with:
 
 This guide requires 32 Nvidia H200 or B200 GPUs and InfiniBand or RoCE RDMA networking. Check `modelserver/base/decode.yaml` and `modelserver/base/prefill.yaml` for detailed resource requirements.
 
+> [!NOTE]
+> The pods leveraging inter-node EP must be deployed in a cluster environment with full mesh
+> network connectivity. The DeepEP backend used in WideEP requires All-to-All RDMA
+> connectivity. Every NIC on a host must be able to communicate with every NIC on all other
+> hosts. Networks restricted to communicating only between matching NIC IDs (rail-only
+> connectivity) will fail.
+
 ## Prerequisites
 
-* Have the [proper client tools installed on your local system](../prereq/client-setup/README.md) to use this guide.
-* Ensure your cluster infrastructure is sufficient to [deploy high scale inference](../prereq/infrastructure/README.md)
-  * You must have high speed inter-accelerator networking
-  * The pods leveraging inter-node EP must be deployed in a cluster environment with full mesh network connectivity.
-    * **_NOTE:_** The DeepEP backend used in WideEP requires All-to-All RDMA connectivity. Every NIC on a host must be able to communicate with every NIC on all other hosts. Networks restricted to communicating only between matching NIC IDs (rail-only connectivity) will fail.
-  * You have deployed the [LeaderWorkerSet optional controller](../prereq/infrastructure/README.md#optional-install-leaderworkerset-for-multi-host-inference)
-  * Optionally, you have deployed [Kueue and the Kueue Populator](../prereq/infrastructure/README.md#optional-install-kueue-and-kueue-populator-for-topology-aware-scheduling-for-multi-host-inference)
+* Have the [proper client tools installed on your local system](../../helpers/client-setup/README.md) to use this guide.
+* You have deployed the [LeaderWorkerSet controller](https://lws.sigs.k8s.io/docs/installation/)
 * Configure and deploy your [Gateway control plane](../prereq/gateway-provider/README.md).
 * Have the [Monitoring stack](../../docs/monitoring/README.md) installed on your system.
 * Create a namespace for installation.
@@ -37,8 +41,7 @@ This guide requires 32 Nvidia H200 or B200 GPUs and InfiniBand or RoCE RDMA netw
   kubectl create namespace ${NAMESPACE}
   ```
 
-* [Create the `llm-d-hf-token` secret in your target namespace with the key `HF_TOKEN` matching a valid HuggingFace token](../prereq/client-setup/README.md#huggingface-token) to pull models.
-* [Choose an llm-d version](../prereq/client-setup/README.md#llm-d-version)
+* [Create the `llm-d-hf-token` secret in your target namespace with the key `HF_TOKEN` matching a valid HuggingFace token](../../helpers/client-setup/hf-token.md) to pull models.
 
 ## Installation
 
@@ -206,13 +209,13 @@ We use the [inference-perf](https://github.com/kubernetes-sigs/inference-perf/tr
 
 ### Run Benchmark
 
-1. Deploy the wide-ep-lws stack following the Installation steps above. Once the stack is ready, obtain the gateway IP: 
+1. Deploy the wide-ep-lws stack following the Installation steps above. Once the stack is ready, obtain the gateway IP:
 
 ```bash
 export GATEWAY_IP=$(kubectl get gateway/llm-d-inference-gateway -n ${NAMESPACE} -o jsonpath='{.status.addresses[0].value}')
 ```
 
-2. Follow the [benchmark guide](../../guides/benchmark/README.md) to deploy the benchmark tool and analyze the benchmark results. Notably, select the corresponding benchmark template:
+2. Follow the [benchmark guide](../../helpers/benchmark.md) to deploy the benchmark tool and analyze the benchmark results. Notably, select the corresponding benchmark template:
 
 ```
 export BENCHMARK_TEMPLATE="${BENCH_TEMPLATE_DIR}"/wide_ep_template.yaml

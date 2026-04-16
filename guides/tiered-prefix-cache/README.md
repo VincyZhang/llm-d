@@ -1,5 +1,7 @@
 # Well-lit Path: Prefix Cache Offloading
 
+[![Nightly - Tiered Prefix Cache E2E (OpenShift)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-tiered-prefix-cache-ocp.yaml/badge.svg)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-tiered-prefix-cache-ocp.yaml)
+
 ## Overview
 
 Efficient caching of prefix computation states to avoid recomputation is crucial for boosting Large Language Model (LLM) inference performance such as Time to First Token (TTFT) and overall throughput, as well as reducing the cost.
@@ -56,7 +58,7 @@ Offloading prefix cache to a shared (remote) storage tier provides several impor
 
 However, shared storage introduces additional operational and performance considerations. Latency and throughput depend on the characteristics of the underlying storage system, so careful evaluation is required to ensure that cache transfer overhead does not negatively impact inference performance.
 
-Integration between the storage system and llm-d is achieved through vLLM connectors. The specific connector and data path depend on the storage system type and the underlying transport mechanism. 
+Integration between the storage system and llm-d is achieved through vLLM connectors. The specific connector and data path depend on the storage system type and the underlying transport mechanism.
 For example, different implementations may use CPU staging buffers, GPU Direct Storage (GDS), or NIXL-based data movement.
 Any storage connector that is compatible with vLLM can be used **transparently within the llm-d project**.
 

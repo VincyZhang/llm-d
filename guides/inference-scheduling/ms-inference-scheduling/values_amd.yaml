@@ -30,6 +30,7 @@ accelerator:
 
 decode:
   create: true
+#  priorityClassName: nightly-gpu-critical
   parallelism:
     tensor: 2
     data: 1
@@ -42,7 +43,7 @@ decode:
       interval: "30s"
   containers:
     - name: "vllm"
-      image: ghcr.io/llm-d/llm-d-rocm:v0.5.1
+      image: ghcr.io/llm-d/llm-d-rocm:v0.6.0
       modelCommand: vllmServe
       args:
         - "--disable-uvicorn-access-log"

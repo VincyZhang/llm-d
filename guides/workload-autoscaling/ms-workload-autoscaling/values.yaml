@@ -26,9 +26,10 @@ routing:
     secure: false
 
 decode:
+  create: true
+#  priorityClassName: nightly-gpu-critical
   parallelism:
     tensor: 1  # each pod requests 1 gpu
-  create: true
   replicas: 2
   monitoring:
     podmonitor:
@@ -40,7 +41,7 @@ decode:
         release: llmd  # Required for Prometheus to discover this PodMonitor
   containers:
     - name: "vllm"
-      image: ghcr.io/llm-d/llm-d-cuda:v0.5.1
+      image: ghcr.io/llm-d/llm-d-cuda:v0.6.0
       modelCommand: vllmServe
       args:
         - "--disable-uvicorn-access-log"

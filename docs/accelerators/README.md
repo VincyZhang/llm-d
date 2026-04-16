@@ -14,13 +14,13 @@ Maintainers for each accelerator type are listed below. See our well-lit path gu
 | Intel | XPU | Yuan Wu (@yuanwu2017, <yuan.wu@intel.com>) | [Inference Scheduling](../../guides/inference-scheduling/README.md), [Prefill/Decode Disaggregation](../../guides/pd-disaggregation/README.md) |
 | Intel | HPU | Sakari Poussa (@poussa, <sakari.poussa@intel.com>) | [Inference Scheduling](../../guides/inference-scheduling/README.md) |
 | NVIDIA | GPU | Will Eaton (<weaton@redhat.com>), Greg (<grpereir@redhat.com>) | All |
+| Rebellions | NPU | Jinmoo Seok (@rebel-jinmoo, <jinmoo_seok@rebellions.ai>), Minwook Ahn (@rebel-minwook, <minwook.ahn@rebellions.ai>) | [Inference Scheduling](../../guides/inference-scheduling/README.md) |
 
 ## Requirements
 
-We welcome contributions from accelerator vendors. To be referenced as a supported hardware vendor we require at minimum a publicly available container image that launches vLLM in the [recommended configuration](../../guides/prereq/infrastructure/README.md#optional-vllm-container-image).
+We welcome contributions from accelerator vendors. To be referenced as a supported hardware vendor we require at minimum a publicly available container image that launches vLLM.
 
 For integration into the well-lit paths our standard for contribution is higher, **requiring**:
-
 - A named maintainer responsible for keeping guide contents up to date
 - Manual or automated verification of the guide deployment for each release
 
@@ -32,7 +32,7 @@ For integration into the well-lit paths our standard for contribution is higher,
 
 ## Intel XPU
 
-Intel accelerators are supported via the well-lit paths (see the **Intel** row in the table above). For cluster prerequisites and image expectations, see the [infrastructure prereq](../../guides/prereq/infrastructure/README.md#optional-vllm-container-image).
+Intel accelerators are supported via the well-lit paths (see the **Intel** row in the table above).
 
 ## Accelerator Resource Management
 
@@ -52,6 +52,7 @@ Each vendor provides Device Plugins for their accelerators. The following plugin
 - [Intel XPU Device Plugin](https://github.com/intel/intel-device-plugins-for-kubernetes/blob/main/cmd/gpu_plugin/README.md)
 - [Intel Gaudi Device Plugin](https://docs.habana.ai/en/latest/Installation_Guide/Additional_Installation/Kubernetes_Installation/Intel_Gaudi_Kubernetes_Device_Plugin.html)
 - [NVIDIA GPU Device Plugin](https://github.com/NVIDIA/k8s-device-plugin)
+- [Rebellions NPU Operator](https://docs.rbln.ai/latest/software/system_management/kubernetes/about_npu_operator.html)
 
 ### Dynamic Resource Allocation
 

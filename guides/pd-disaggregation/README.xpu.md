@@ -1,5 +1,7 @@
 # Intel XPU PD Disaggregation Deployment Guide
 
+## Overview
+
 This document provides complete steps for deploying Intel XPU PD (Prefill-Decode) disaggregation service on Kubernetes cluster using DeepSeek-R1-Distill-Qwen-1.5B model. PD disaggregation separates the prefill and decode phases of inference, allowing for more efficient resource utilization and improved throughput.
 
 ## Prerequisites
@@ -82,8 +84,7 @@ If these checks fail, `kubectl apply -f ms-pd/rdma-resource-claims.yaml` may fai
   kubectl create namespace ${NAMESPACE}
   ```
 
-* [Create the `llm-d-hf-token` secret in your target namespace with the key `HF_TOKEN` matching a valid HuggingFace token](../prereq/client-setup/README.md#huggingface-token) to pull models.
-* [Choose an llm-d version](../prereq/client-setup/README.md#llm-d-version)
+* [Create the `llm-d-hf-token` secret in your target namespace with the key `HF_TOKEN` matching a valid HuggingFace token](../../helpers/client-setup/hf-token.md) to pull models.
 
 ## Step 0: Build Intel XPU Docker Image (Optional)
 
@@ -95,7 +96,7 @@ If you need to customize the vLLM version or build the image from source, you ca
 
 ```shell
 # Build with the default vLLM version from docker/common-versions
-make image-build DEVICE=xpu VERSION=v0.5.1
+make image-build DEVICE=xpu VERSION=v0.6.0
 ```
 
 #### Intel Corporation Battlemage G21
@@ -105,7 +106,7 @@ make image-build DEVICE=xpu VERSION=v0.5.1
 git clone https://github.com/vllm-project/vllm.git
 cd vllm
 git checkout v0.15.1
-docker build -f docker/Dockerfile.xpu -t ghcr.io/llm-d/llm-d-xpu-dev:v0.5.1 --shm-size=4g .
+docker build -f docker/Dockerfile.xpu -t ghcr.io/llm-d/llm-d-xpu-dev:v0.6.0 --shm-size=4g .
 ```
 
 ### Available Build Arguments
@@ -132,11 +133,11 @@ Refer to <https://github.com/vllm-project/vllm/blob/main/docker/Dockerfile.xpu> 
 cd llm-d
 
 # Install necessary tools (helm, helmfile, kubectl, yq, git, kind, etc.)
-./guides/prereq/client-setup/install-deps.sh
+./helpers/client-setup/install-deps.sh
 curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64 && chmod +x ./kind && sudo mv ./kind /usr/local/bin/kind
 
 # Optional: Install development tools (including chart-testing)
-./guides/prereq/client-setup/install-deps.sh --dev
+./helpers/client-setup/install-deps.sh --dev
 ```
 
 **Installed tools include:**
@@ -169,7 +170,7 @@ If you built the Intel XPU image in Step 0, load it into the Kind cluster:
 
 ```shell
 # Load the built image into Kind cluster
-kind load docker-image ghcr.io/llm-d/llm-d-xpu:v0.5.1 --name llm-d-cluster
+kind load docker-image ghcr.io/llm-d/llm-d-xpu:v0.6.0 --name llm-d-cluster
 
 # Or if you built with custom tag
 kind load docker-image llm-d:custom-xpu --name llm-d-cluster
@@ -266,7 +267,7 @@ Expected output:
 NAME       NAMESPACE   REVISION   STATUS     CHART
 gaie-pd    llm-d-pd    1          deployed   inferencepool-v1.4.0
 infra-pd   llm-d-pd    1          deployed   llm-d-infra-v1.4.0
-ms-pd      llm-d-pd    1          deployed   llm-d-modelservice-v0.4.7
+ms-pd      llm-d-pd    1          deployed   llm-d-modelservice-v0.4.9
 ```
 
 ### Check All Resources

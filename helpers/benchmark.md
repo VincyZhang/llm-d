@@ -1,14 +1,14 @@
-# How to run a benchmark workload against your LLM-d stack
+# Benchmarking
 
-## Overview
+This helper describes how to run benchmarks against a deployed llm-d stack.
 
-This document describes how to run benchmarks against a deployed llm-d stack.
-For full, customizable benchmarking, please refer to [llm-d-benchmark](https://github.com/llm-d/llm-d-benchmark). `llm-d-benchmark` includes advanced features, such as automatic stack creation, sweeping of configuration parameters, recommendations, etc.
+> [!NOTE]
+> For full, customizable benchmarking, please refer to [llm-d-benchmark](https://github.com/llm-d/llm-d-benchmark), which includes advanced features, such as automatic stack creation, sweeping of configuration parameters, recommendations, etc.
 
 ## Requirements
 
 - You are assumed to have deployed the llm-d inference stack from a guide, or otherwise followed the llm-d conventions for deployment.
-- Install `yq` (YAML processor) - version>=4 (see [Client Setup](../prereq/client-setup/README.md))
+- Install `yq` (YAML processor) - version>=4 (see [Client Setup](../../helpers/client-setup/README.md))
 - For MacOS users: if `timeout` utility is not present, install it with `brew install coreutils` command.
 - Download the benchmark script [run_only.sh](https://github.com/llm-d/llm-d-benchmark/blob/main/existing_stack/run_only.sh) and make it executable.
 
@@ -17,7 +17,7 @@ For full, customizable benchmarking, please refer to [llm-d-benchmark](https://g
     chmod u+x run_only.sh
     ```
 
-- Prepare a Persistent Volume Claim (PVC) to store the benchmark results. The PVC must have `RWX` write permissions and be large enough (`200Gi` recommended).  
+- Prepare a Persistent Volume Claim (PVC) to store the benchmark results. The PVC must have `RWX` write permissions and be large enough (`200Gi` recommended).
   Alternatively, use the `-o` option of `run_only.sh` to output results to ephemeral storage and then copy them over to a local directory or to a cloud bucket.
 
   <details>
@@ -332,7 +332,7 @@ This example uses `guidellm` with a [`rate_comparison`](../inference-scheduling/
   Containers:
     harness:
       Container ID:  cri-o://2d450837cc20f303e9635b70897a40865bf4b44f1024e50c41d3c858b21f1db7
-      Image:         ghcr.io/llm-d/llm-d-benchmark:v0.5.0
+      Image:         ghcr.io/llm-d/llm-d-benchmark:v0.5.2
       Image ID:      ghcr.io/llm-d/llm-d-benchmark@sha256:c23a8d5650f1a3f0d40cb0985679f6cddf8f71f0bdfa3fb302b1911f4d8a7d6c
       Port:          <none>
       Host Port:     <none>
@@ -397,8 +397,8 @@ This example uses `guidellm` with a [`rate_comparison`](../inference-scheduling/
     Normal  Scheduled               3s    default-scheduler        Successfully assigned dean-ns1/llmdbench-harness-launcher to pokprod-b93r43s0
     Normal  SuccessfulAttachVolume  3s    attachdetach-controller  AttachVolume.Attach succeeded for volume "pvc-1c986c2c-5c37-44bb-b43f-9c871904428e"
     Normal  AddedInterface          2s    multus                   Add eth0 [10.130.7.105/23] from ovn-kubernetes
-    Normal  Pulling                 2s    kubelet                  Pulling image "ghcr.io/llm-d/llm-d-benchmark:v0.4.9"
-    Normal  Pulled                  2s    kubelet                  Successfully pulled image "ghcr.io/llm-d/llm-d-benchmark:v0.4.9" in 285ms (285ms including waiting). Image size: 3174696470 bytes.
+    Normal  Pulling                 2s    kubelet                  Pulling image "ghcr.io/llm-d/llm-d-benchmark:v0.5.2"
+    Normal  Pulled                  2s    kubelet                  Successfully pulled image "ghcr.io/llm-d/llm-d-benchmark:v0.5.2" in 285ms (285ms including waiting). Image size: 3174696470 bytes.
     Normal  Created                 2s    kubelet                  Created container: harness
     Normal  Started                 2s    kubelet                  Started container harness
 
@@ -841,7 +841,7 @@ To allow easier comparison between results from different harnesses, the benchma
 
 ### Graphical report
 
-Some harnesses also generate plots of the results. In our example, `inference-perf` generates several plots under the `analysis` sub directory. In [llm-d-benchmark](https://github.com/llm-d/llm-d-benchmark) there are examples of more complex plots (see [analysis.ipynb](https://github.com/llm-d/llm-d-benchmark/blob/main/analysis/analysis.ipynb)).
+Some harnesses also generate plots of the results. In our example, `inference-perf` generates several plots under the `analysis` sub directory. In [llm-d-benchmark](https://github.com/llm-d/llm-d-benchmark) there are examples of more complex plots (see [analysis.ipynb](https://github.com/llm-d/llm-d-benchmark/blob/main/docs/analysis/analysis.ipynb)).
 
 ---
 
@@ -900,7 +900,7 @@ Typically, you do not have to change the `namespace` or the `image`
     parallelism: 1                  # Number of parallel workload launcher pods to create.
     wait_timeout: 600               # Time (in seconds) to wait for workload launcher pod to complete before terminating.
                                     # Set to 0 to disable timeout.
-    image: ghcr.io/llm-d/llm-d-benchmark:v0.4.9
+    image: ghcr.io/llm-d/llm-d-benchmark:v0.5.2
     # dataset_url: https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/main/ShareGPT_V3_unfiltered_cleaned_split.json
   ```
 

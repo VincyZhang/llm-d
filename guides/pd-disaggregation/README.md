@@ -1,5 +1,7 @@
 # Well-lit Path: P/D Disaggregation
 
+[![Nightly - PD Disaggregation E2E (OpenShift)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-pd-disaggregation-ocp.yaml/badge.svg)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-pd-disaggregation-ocp.yaml) [![Nightly - PD Disaggregation E2E (CKS)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-pd-disaggregation-cks.yaml/badge.svg)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-pd-disaggregation-cks.yaml) [![Nightly - PD Disaggregation E2E (GKE)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-pd-disaggregation-gke.yaml/badge.svg)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-pd-disaggregation-gke.yaml)
+
 ## Overview
 
 This guide demonstrates how to deploy GPT-OSS-120B using vLLM's P/D disaggregation support with NIXL. This guide has been validated on:
@@ -47,8 +49,7 @@ For Intel HPU deployments:
 
 ## Prerequisites
 
-* Have the [proper client tools installed on your local system](../prereq/client-setup/README.md) to use this guide.
-* Ensure your cluster infrastructure is sufficient to [deploy high scale inference](../prereq/infrastructure)
+* Have the [proper client tools installed on your local system](../../helpers/client-setup/README.md) to use this guide.
 * Configure and deploy your [Gateway control plane](../prereq/gateway-provider/README.md).
 * Have the [Monitoring stack](../../docs/monitoring/README.md) installed on your system.
 * Create a namespace for installation.
@@ -58,8 +59,7 @@ For Intel HPU deployments:
   kubectl create namespace ${NAMESPACE}
   ```
 
-* [Create the `llm-d-hf-token` secret in your target namespace with the key `HF_TOKEN` matching a valid HuggingFace token](../prereq/client-setup/README.md#huggingface-token) to pull models.
-* [Choose an llm-d version](../prereq/client-setup/README.md#llm-d-version)
+* [Create the `llm-d-hf-token` secret in your target namespace with the key `HF_TOKEN` matching a valid HuggingFace token](../../helpers/client-setup/hf-token.md) to pull models.
 
 ## Installation
 
@@ -102,6 +102,23 @@ You can also customize your gateway, for more information on how to do that see 
 
 This guide uses RDMA via InfiniBand or RoCE for disaggregated serving kv-cache transfer. The resource attributes required to configure accelerator networking are not yet standardized via [Kubernetes Dynamic Resource Allocation](https://kubernetes.io/docs/concepts/scheduling-eviction/dynamic-resource-allocation/) and so are parameterized per infra provider in the Helm charts. If your provider has a custom setting you will need to update the charts before deploying.
 
+##### OCI (Oracle Cloud Infrastructure)
+
+For OCI deployments, use `-e oci_amd` which configures SR-IOV RDMA networking and OCI-specific UCX transport variables:
+
+```bash
+helmfile apply -e oci_amd -n ${NAMESPACE}
+```
+
+An OKE Cluster with RDMA networking must be deployed prior to launching llm-d on OCI. Refer to [the oci-hpc-oke stack](https://github.com/oracle-quickstart/oci-hpc-oke) for deployment.
+
+**_NOTE:_** The `NetworkAttachmentDefinition` name (`sriov-rdma-vf`) and `nvidia.com/sriov-rdma-vf` resource label in `ms-pd/values_oci_amd.yaml` must match your cluster's SR-IOV device plugin configuration.
+
+**Common gotchas:**
+* If you change tensor parallelism, update both `podAnnotations` VF count and `nvidia.com/sriov-rdma-vf` resource requests to match
+* Wrong `UCX_IB_GID_INDEX` causes silent fallback to TCP — set `UCX_PROTO_INFO=y` to verify RDMA is selected
+* `IPC_LOCK` capability is required for RDMA pinned memory; without it NIXL transfers will fail
+
 ### Install HTTPRoute
 
 Follow provider specific instructions for installing HTTPRoute.
@@ -127,7 +144,7 @@ helm list -n ${NAMESPACE}
 NAME        NAMESPACE   REVISION    UPDATED                                 STATUS      CHART                       APP VERSION
 gaie-pd     llm-d-pd    1           2025-08-24 12:54:51.231537 -0700 PDT    deployed    inferencepool-v1.4.0        v1.4.0
 infra-pd    llm-d-pd    1           2025-08-24 12:54:46.983361 -0700 PDT    deployed    llm-d-infra-v1.4.0          v0.4.0
-ms-pd       llm-d-pd    1           2025-08-24 12:54:56.736873 -0700 PDT    deployed    llm-d-modelservice-v0.4.7   v0.4.0
+ms-pd       llm-d-pd    1           2025-08-24 12:54:56.736873 -0700 PDT    deployed    llm-d-modelservice-v0.4.9   v0.4.0
 ```
 
 * Out of the box with this example you should have the following resources:
@@ -184,7 +201,7 @@ Some examples in which you might want to do selective PD might include:
 * When the prompt is short enough that the amount of work split inference into prefill and decode phases, and then open a kv transfer between those two GPUs is greater than the amount of work to do both phases on the same decode inference worker.
 * When Prefill units are at full capacity.
 
-For information on this plugin, see our [`pd-profile-handler` docs in the inference-scheduler](https://github.com/llm-d/llm-d-inference-scheduler/blob/v0.5.1/docs/architecture.md?plain=1#L205-L210)
+For information on this plugin, see our [`pd-profile-handler` docs in the inference-scheduler](https://github.com/llm-d/llm-d-inference-scheduler/blob/v0.7.0/docs/architecture.md?plain=1#L205-L210)
 
 ## Benchmarking
 
@@ -256,7 +273,7 @@ export GATEWAY_IP=$(kubectl get gateway/llm-d-inference-gateway -n ${NAMESPACE} 
 
 The `GATEWAY_IP` environment variable will be used in the [benchmark template](./benchmark-templates/guide.yaml).
 
-2. Follow the [benchmark guide](../../guides/benchmark/README.md) to deploy the benchmark tool and analyze the benchmark results. Notably, select the corresponding benchmark template:
+2. Follow the [benchmark guide](../../helpers/benchmark.md) to deploy the benchmark tool and analyze the benchmark results. Notably, select the corresponding benchmark template:
 
 ```bash
 export BENCH_TEMPLATE_DIR="${LLMD_ROOT_DIR}"/guides/pd-disaggregation/benchmark-templates

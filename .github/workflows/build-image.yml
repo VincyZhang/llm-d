@@ -55,7 +55,7 @@ env:
   IMAGE_NAME: llm-d
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.sha }}
 
 jobs:
   pre-commit:
@@ -80,12 +80,12 @@ jobs:
         shell: bash
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.x"
 
       - name: Run pre-commit
-        uses: j178/prek-action@v1
+        uses: j178/prek-action@v2
         with:
           extra-args: ""
 
@@ -113,7 +113,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.ref || '' }}
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@v4
         if: github.event_name != 'workflow_dispatch' && inputs.force_build != true
         id: filter
         with:
@@ -217,24 +217,28 @@ jobs:
           echo "offloading_connector_version=${LLM_D_OFFLOADING_CONNECTOR_VERSION}" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.GHCR_USER }}
           password: ${{ secrets.GHCR_TOKEN }}
 
+      - name: Compute short SHA from checkout
+        id: short-sha
+        run: echo "short_sha=$(git rev-parse --short=7 HEAD)" >> $GITHUB_OUTPUT
+
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}-cuda${{ matrix.image_suffix }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
-            type=sha
+            type=raw,value=sha-${{ steps.short-sha.outputs.short_sha }}
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Calculate Cache Bust Timestamp
@@ -244,7 +248,7 @@ jobs:
 
       - name: Build and push debug image
         id: build-debug
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./docker/Dockerfile.cuda
@@ -301,7 +305,7 @@ jobs:
 
       - name: Upload digest
         if: ${{ steps.build-debug.outputs.digest != '' }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: digests-cuda-dev-debug-${{ matrix.os }}-${{ matrix.platform == 'linux/arm64' && 'arm64' || 'amd64' }}
           path: /tmp/digests/${{ matrix.os }}/*
@@ -374,24 +378,28 @@ jobs:
           echo "offloading_connector_version=${LLM_D_OFFLOADING_CONNECTOR_VERSION}" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.GHCR_USER }}
           password: ${{ secrets.GHCR_TOKEN }}
 
+      - name: Compute short SHA from checkout
+        id: short-sha
+        run: echo "short_sha=$(git rev-parse --short=7 HEAD)" >> $GITHUB_OUTPUT
+
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}-cuda-dev${{ matrix.image_suffix }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
-            type=sha
+            type=raw,value=sha-${{ steps.short-sha.outputs.short_sha }}
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Calculate Cache Bust Timestamp
@@ -401,7 +409,7 @@ jobs:
 
       - name: Build the builder image layer
         id: build-image-build-layer
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./docker/Dockerfile.cuda
@@ -433,7 +441,7 @@ jobs:
 
       - name: Build the final image layer
         id: build-image-final-layer
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./docker/Dockerfile.cuda
@@ -490,7 +498,7 @@ jobs:
 
       - name: Upload digest
         if: ${{ steps.build-image-final-layer.outputs.digest != '' }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: digests-cuda-dev-${{ matrix.os }}-${{ matrix.platform == 'linux/arm64' && 'arm64' || 'amd64' }}
           path: /tmp/digests/${{ matrix.os }}/*
@@ -613,11 +621,11 @@ jobs:
 
       - name: Set up Docker Buildx
         if: ${{ steps.should-run.outputs.os_succeeded == 'true' }}
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to Container Registry
         if: ${{ steps.should-run.outputs.os_succeeded == 'true' }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.GHCR_USER }}
@@ -626,13 +634,13 @@ jobs:
       - name: Extract metadata
         if: ${{ steps.should-run.outputs.os_succeeded == 'true' }}
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}-cuda-dev${{ matrix.image_suffix }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
-            type=sha
+            type=raw,value=sha-${{ needs.cuda-success-check.outputs.shortsha }}
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Create and push manifest
@@ -744,24 +752,28 @@ jobs:
           echo "offloading_connector_version=${LLM_D_OFFLOADING_CONNECTOR_VERSION}" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.GHCR_USER }}
           password: ${{ secrets.GHCR_TOKEN }}
 
+      - name: Compute short SHA from checkout
+        id: short-sha
+        run: echo "short_sha=$(git rev-parse --short=7 HEAD)" >> $GITHUB_OUTPUT
+
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}-aws-dev${{ matrix.image_suffix }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
-            type=sha
+            type=raw,value=sha-${{ steps.short-sha.outputs.short_sha }}
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Calculate Cache Bust Timestamp
@@ -771,7 +783,7 @@ jobs:
 
       - name: Build the builder image layer
         id: build-image-build-layer
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./docker/Dockerfile.cuda
@@ -799,7 +811,7 @@ jobs:
 
       - name: Build the final image layer
         id: build-image-final-layer
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./docker/Dockerfile.cuda
@@ -850,7 +862,7 @@ jobs:
 
       - name: Upload digest
         if: ${{ steps.build-image-final-layer.outputs.digest != '' }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: digests-aws-dev-${{ matrix.os }}-${{ matrix.platform == 'linux/arm64' && 'arm64' || 'amd64' }}
           path: /tmp/digests/${{ matrix.os }}/*
@@ -941,11 +953,11 @@ jobs:
 
       - name: Set up Docker Buildx
         if: ${{ steps.should-run.outputs.rhel_ok == 'true' }}
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to Container Registry
         if: ${{ steps.should-run.outputs.rhel_ok == 'true' }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.GHCR_USER }}
@@ -954,13 +966,13 @@ jobs:
       - name: Extract metadata
         if: ${{ steps.should-run.outputs.rhel_ok == 'true' }}
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}-aws-dev
           tags: |
             type=ref,event=branch
             type=ref,event=pr
-            type=sha
+            type=raw,value=sha-${{ needs.aws-success-check.outputs.shortsha }}
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Create and push manifest
@@ -1051,31 +1063,35 @@ jobs:
           echo "cuda_patch=${CUDA_PATCH}" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
         with:
           buildkitd-flags: --oci-worker-gc
 
       - name: Log in to Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.GHCR_USER }}
           password: ${{ secrets.GHCR_TOKEN }}
 
+      - name: Compute short SHA from checkout
+        id: short-sha
+        run: echo "short_sha=$(git rev-parse --short=7 HEAD)" >> $GITHUB_OUTPUT
+
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}-rdma-tools-dev
           tags: |
             type=ref,event=branch
             type=ref,event=pr
-            type=sha
+            type=raw,value=sha-${{ steps.short-sha.outputs.short_sha }}
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build & Push
         id: build-and-push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./docker/Dockerfile.rdma-tools
@@ -1140,10 +1156,10 @@ jobs:
           echo "commit_sha=${VLLM_XPU_COMMIT_SHA}" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.GHCR_USER }}
@@ -1173,7 +1189,7 @@ jobs:
 
       - name: Build and push the image
         id: build-and-push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./.cache/vllm-src
           file: ./.cache/vllm-src/docker/Dockerfile.xpu
@@ -1233,10 +1249,10 @@ jobs:
           ref: ${{ inputs.ref || '' }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.GHCR_USER }}
@@ -1254,7 +1270,7 @@ jobs:
 
       - name: Build and push the image
         id: build-and-push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./docker/Dockerfile.rocm
@@ -1313,7 +1329,7 @@ jobs:
           ref: ${{ inputs.ref || '' }}
 
       - name: Log in to Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.GHCR_USER }}
@@ -1396,10 +1412,10 @@ jobs:
           echo "commit_sha=${VLLM_COMMIT_SHA}" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.GHCR_USER }}
@@ -1422,7 +1438,7 @@ jobs:
 
       - name: Build and push the image
         id: build-and-push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./docker/Dockerfile.cpu

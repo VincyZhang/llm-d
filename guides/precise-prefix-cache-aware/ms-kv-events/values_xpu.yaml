@@ -17,16 +17,16 @@ accelerator:
   dra: true
 
 modelArtifacts:
-  name: Qwen/Qwen3-0.6B
-  uri: "hf://Qwen/Qwen3-0.6B"
-  size: 10Gi
+  name: Qwen/Qwen3-32B
+  uri: "hf://Qwen/Qwen3-32B"
+  size: 80Gi
   authSecretName: "llm-d-hf-token"
   labels:
     llm-d.ai/inference-serving: "true"
     llm-d.ai/guide: "precise-prefix-cache-aware"
     llm-d.ai/hardware-variant: "xpu"
     llm-d.ai/hardware-vendor: "intel"
-    llm-d.ai/model: "Qwen3-0.6B"
+    llm-d.ai/model: "Qwen3-32B"
 
 routing:
   proxy:
@@ -34,7 +34,10 @@ routing:
 
 decode:
   create: true
+#  priorityClassName: nightly-gpu-critical
   replicas: 2
+  parallelism:
+    tensor: 2
   securityContext:
     fsGroup: 107
     supplementalGroups:
@@ -48,22 +51,24 @@ decode:
   containers:
     - name: "vllm"
       # Use Intel latest published xpu image
-      image: ghcr.io/llm-d/llm-d-xpu:v0.5.1
-      modelCommand: custom
-      command:
-        - /bin/sh
-        - '-c'
+      image: ghcr.io/llm-d/llm-d-xpu:v0.6.0
+      modelCommand: vllmServe
       args:
-        - |
-          set -x
-          exec vllm serve Qwen/Qwen3-0.6B \
-            --port 8000 \
-            --served-model-name "Qwen/Qwen3-0.6B" \
-            --dtype float16 \
-            --disable-sliding-window \
-            --block-size 64 \
-            --prefix-caching-hash-algo sha256_cbor \
-            --kv-events-config "{\"enable_kv_cache_events\":true,\"publisher\":\"zmq\",\"endpoint\":\"tcp://gaie-${GAIE_RELEASE_NAME_POSTFIX}-epp.${NAMESPACE}.svc.cluster.local:5557\",\"topic\":\"kv@${POD_IP}@Qwen/Qwen3-0.6B\"}"
+        - "--dtype"
+        - "float16"
+        - "--disable-sliding-window"
+        - "--block-size"
+        - "64"
+        - "--prefix-caching-hash-algo"
+        - "sha256_cbor"
+        - "--kv-events-config"
+        - |-
+          {
+            "enable_kv_cache_events": true,
+            "publisher": "zmq",
+            "endpoint": "tcp://gaie-$(GAIE_RELEASE_NAME_POSTFIX)-epp.$(NAMESPACE).svc.cluster.local:5557",
+            "topic": "kv@$(POD_IP):8000@Qwen/Qwen3-32B"
+          }
       env:
         - name: GAIE_RELEASE_NAME_POSTFIX  # index 0 matters because of set in helmfile
           value: "default"
@@ -87,11 +92,11 @@ decode:
           protocol: TCP
       resources:
         limits:
-          memory: 24Gi
-          cpu: "8"
+          memory: 48Gi
+          cpu: "16"
         requests:
-          cpu: "4"
-          memory: 12Gi
+          cpu: "8"
+          memory: 24Gi
 
       mountModelVolume: true
       volumeMounts:

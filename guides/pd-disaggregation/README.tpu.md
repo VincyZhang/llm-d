@@ -8,11 +8,11 @@ For broader context or GPU setup, refer to this [p/d guide](./README.md)
 
 ## Hardware Requirements
 
-This guide uses Cloud TPU v6e (Trillium) accelerators on Google Cloud Platform (GCP), specifically the `ct6e-standard-8t` machine type. You may also choose other compatible TPU VM types.
+This guide uses Cloud TPU v6e (Trillium) accelerators on Google Cloud Platform (GCP), specifically the `ct6e-standard-8t` machine type. You may also choose other compatible TPU VM topologies, e.g. ct6e-standard-1t (1x1), ct6e-standard-4t (2x2).
 
 ## Prerequisites
 
-- Have the [proper client tools installed on your local system](../prereq/client-setup/README.md) to use this guide.
+- Have the [proper client tools installed on your local system](../../helpers/client-setup/README.md) to use this guide.
 - Create a namespace for installation.
 
   ```bash
@@ -20,8 +20,7 @@ This guide uses Cloud TPU v6e (Trillium) accelerators on Google Cloud Platform (
   kubectl create namespace ${NAMESPACE}
   ```
 
-- [Create the `llm-d-hf-token` secret in your target namespace with the key `HF_TOKEN` matching a valid HuggingFace token](../prereq/client-setup/README.md#huggingface-token) to pull models.
-- [Choose an llm-d version](../prereq/client-setup/README.md#llm-d-version)
+- [Create the `llm-d-hf-token` secret in your target namespace with the key `HF_TOKEN` matching a valid HuggingFace token](../../helpers/client-setup/hf-token.md) to pull models.
 
 ## Installation Steps
 
@@ -59,7 +58,7 @@ helm list -n ${NAMESPACE}
 NAME     NAMESPACE  REVISION UPDATED                                 STATUS   CHART                      APP VERSION
 gaie-pd  llm-d-pd   1        2025-11-07 00:31:54.106881562 +0000 UTC deployed inferencepool-v1.4.0  v1.4.0
 infra-pd llm-d-pd   1        2025-11-07 00:31:50.355629868 +0000 UTC deployed llm-d-infra-v1.4.0         v0.4.0
-ms-pd    llm-d-pd   7        2025-11-07 17:45:30.946563039 +0000 UTC deployed llm-d-modelservice-v0.4.7  v0.4.0
+ms-pd    llm-d-pd   7        2025-11-07 17:45:30.946563039 +0000 UTC deployed llm-d-modelservice-v0.4.9  v0.4.0
 ```
 
 - Out of the box with this example you should have the following resources:
@@ -206,7 +205,7 @@ For more information see [our docs](../../docs/getting-started-inferencing.md)
 
 Selective PD is a feature in the `inference-scheduler` within the context of prefill-decode disaggregation, although it is disabled by default. This feature enables routing to just decode even with the P/D deployed.
 
-For information on this plugin, see our [`pd-profile-handler` docs in the inference-scheduler](https://github.com/llm-d/llm-d-inference-scheduler/blob/v0.5.1/docs/architecture.md?plain=1#L205-L210)
+For information on this plugin, see our [`pd-profile-handler` docs in the inference-scheduler](https://github.com/llm-d/llm-d-inference-scheduler/blob/v0.7.0/docs/architecture.md?plain=1#L205-L210)
 
 ## Cleanup
 

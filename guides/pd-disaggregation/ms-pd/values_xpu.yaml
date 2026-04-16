@@ -31,14 +31,15 @@ modelArtifacts:
 routing:
   servicePort: 8000
   proxy:
-    image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.6.0
+    image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.7.1
     connector: nixlv2
     secure: false
 
 decode:
+  create: true
+#  priorityClassName: nightly-gpu-critical
   parallelism:  # controls count of specialized hardware devices allocated
     tensor: 1
-  create: true
   replicas: 1
   securityContext:
     fsGroup: 107
@@ -52,7 +53,7 @@ decode:
       interval: "30s"
   containers:
     - name: "vllm"
-      image: ghcr.io/llm-d/llm-d-xpu:v0.5.1
+      image: ghcr.io/llm-d/llm-d-xpu:v0.6.0
       modelCommand: vllmServe
       args:
         - "--block-size"
@@ -135,9 +136,10 @@ decode:
       emptyDir: {}
 
 prefill:
+  create: true
+#  priorityClassName: nightly-gpu-critical
   parallelism:
     tensor: 1
-  create: true
   replicas: 3
   securityContext:
     fsGroup: 107
@@ -151,7 +153,7 @@ prefill:
       interval: "30s"
   containers:
     - name: "vllm"
-      image: ghcr.io/llm-d/llm-d-xpu:v0.5.1
+      image: ghcr.io/llm-d/llm-d-xpu:v0.6.0
       modelCommand: vllmServe
       args:
         - "--block-size"

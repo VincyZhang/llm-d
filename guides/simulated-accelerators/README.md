@@ -1,5 +1,7 @@
 # Feature: llm-d Accelerator Simulation
 
+[![Nightly - Simulated Accelerators E2E (OpenShift)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-simulated-accelerators.yaml/badge.svg)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-simulated-accelerators.yaml)
+
 ## Overview
 
 Conducting large scale testing of AI/ML workloads is difficult when capacity is limited or already committed to production workloads. `llm-d` provides a lightweight model server that mimics the behavior of executing inference without requiring an attached accelerator. This simulated server can be run in wide or dense configurations on CPU-only machines to validate the correct behavior of other parts of the system, including Kubernetes autoscaling and the `inference-scheduler`.
@@ -8,7 +10,7 @@ This guide demonstrates how to deploy the simulator `ghcr.io/llm-d/llm-d-inferen
 
 ## Prerequisites
 
-- Have the [proper client tools installed on your local system](../prereq/client-setup/README.md) to use this guide.
+- Have the [proper client tools installed on your local system](../../helpers/client-setup/README.md) to use this guide.
 - Configure and deploy your [Gateway control plane](../prereq/gateway-provider/README.md).
 - Have the [Monitoring stack](../../docs/monitoring/README.md) installed on your system.
 - Create a namespace for installation.
@@ -17,8 +19,6 @@ This guide demonstrates how to deploy the simulator `ghcr.io/llm-d/llm-d-inferen
   export NAMESPACE=llm-d-sim # or any other namespace (shorter names recommended)
   kubectl create namespace ${NAMESPACE}
   ```
-
-- [Choose an llm-d version](../prereq/client-setup/README.md#llm-d-version)
 
 **_NOTE:_** Unlike other examples which require models, the simulator stubs the vLLM server and so no HuggingFace token is needed.
 
@@ -77,7 +77,7 @@ helm list -n ${NAMESPACE}
 NAME        NAMESPACE   REVISION   UPDATED                               STATUS     CHART                       APP VERSION
 gaie-sim    llm-d-sim   1          2025-08-24 11:44:26.88254 -0700 PDT   deployed   inferencepool-v1.4.0   v1.4.0
 infra-sim   llm-d-sim   1          2025-08-24 11:44:23.11688 -0700 PDT   deployed   llm-d-infra-v1.4.0          v0.4.0
-ms-sim      llm-d-sim   1          2025-08-24 11:44:32.17112 -0700 PDT   deployed   llm-d-modelservice-v0.4.7   v0.4.0
+ms-sim      llm-d-sim   1          2025-08-24 11:44:32.17112 -0700 PDT   deployed   llm-d-modelservice-v0.4.9   v0.4.0
 ```
 
 - Out of the box with this example you should have the following resources:

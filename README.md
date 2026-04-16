@@ -20,17 +20,20 @@ llm-d is a high-performance distributed inference serving stack optimized for pr
 
 Model servers like [vLLM](https://docs.vllm.ai) and [SGLang](https://github.com/sgl-project/sglang) handle efficiently running large language models on accelerators. llm-d provides state of the art orchestration above model servers to serve high-scale real world traffic efficiently and reliably:
 
-1. [Intelligent Inference Scheduling](./guides/inference-scheduling/README.md) - Deploy [vLLM](https://docs.vllm.ai) behind a smart Envoy load balancer enhanced with an [inference scheduler](https://github.com/llm-d/llm-d-inference-scheduler) to decrease serving latency and increase throughput with [prefix-cache aware routing](./guides/precise-prefix-cache-aware/README.md), utilization-based load balancing, fairness and prioritization for multi-tenant serving, and [predicted latency balancing (experimental)](./guides/predicted-latency-based-scheduling).
+1. [Intelligent Inference Scheduling](./guides/inference-scheduling/README.md) - Deploy [vLLM](https://docs.vllm.ai) behind a Gateway API-based load balancer enhanced with an [inference scheduler](https://github.com/llm-d/llm-d-inference-scheduler) to decrease serving latency and increase throughput with [prefix-cache aware routing](./guides/precise-prefix-cache-aware/README.md), utilization-based load balancing, fairness and prioritization for multi-tenant serving, and [predicted latency balancing (experimental)](./guides/predicted-latency-based-scheduling).
 2. [Disaggregated Serving (prefill/decode disaggregation)](./guides/pd-disaggregation/README.md) - Reduce time to first token (TTFT) and get more predictable time per output token (TPOT) by splitting inference into prefill servers handling prompts and decode servers handling responses, primarily on large models such as gpt-oss-120b and when processing very long prompts.
 3. [Wide Expert-Parallelism](./guides/wide-ep-lws/README.md) - Deploy very large Mixture-of-Experts (MoE) models like [DeepSeek-R1](https://github.com/vllm-project/vllm/issues/16037) for much higher throughput for RL and latency-insensitive workloads, using [Data Parallelism and Expert Parallelism](https://docs.vllm.ai/en/latest/serving/data_parallel_deployment.html) over fast accelerator networks.
 4. [Tiered KV Prefix Caching with CPU and Storage Offload](./guides/tiered-prefix-cache/README.md) - Improve prefix cache hit rate by offloading KV-cache entries to CPU memory, local SSD, and remote high-performance filesystem storage.
 5. [Workload Autoscaling](./guides/workload-autoscaling/README.md) - Autoscale multi-model workloads on heterogeneous shared hardware with SLO-aware cost optimization using the [Workload Variant Autoscaler](./guides/workload-autoscaling/README.wva.md) or autoscale workloads on homogeneous hardware where each model scales independently using [HPA with IGW metrics](./guides/workload-autoscaling/README.hpa-igw.md).
 
-These [guides](./guides/README.md) provide tested and benchmarked recipes and Helm charts to start serving quickly with best practices common to production deployments. They are extensible and customizable for particulars of your models and use cases, using standard open source components like Kubernetes, Envoy proxy, NIXL, and vLLM. Our intent is to eliminate the heavy lifting common in tuning and deploying generative AI inference on modern accelerators.
+These [guides](./guides/README.md) provide tested and benchmarked recipes and Helm charts to start serving quickly with best practices common to production deployments. They are extensible and customizable for particulars of your models and use cases, using standard open source components like Kubernetes, Kubernetes Gateway API, NIXL, and vLLM. Our intent is to eliminate the heavy lifting common in tuning and deploying generative AI inference on modern accelerators.
 
 ## Get Started Now
 
-We recommend new users start with a deployment of the inference scheduler and vLLM together through our [step-by-step quickstart](./guides/QUICKSTART.md).
+We recommend new users start with a deployment of [intelligent inference scheduling](./guides/inference-scheduling/README.md).
+
+> [!NOTE]
+> We are currently revamping our documentation. You can also preview [our new quickstarts](./docs/wip-docs-new/getting-started/quickstart.md), which will be formally released soon.
 
 ### Latest News 🔥
 
@@ -56,7 +59,7 @@ llm-d accelerates distributed inference by integrating industry-standard open te
 
 - [**Model Server Optimizations in vLLM:**](https://github.com/vllm-project/vllm) The llm-d team contributes and maintains high performance distributed serving optimizations in upstream vLLM, including disaggregated serving, KV connector interfaces, support for frontier OSS mixture of experts models, and production-ready observability and resiliency. 
 
-- [**Inference Scheduler:**](https://github.com/llm-d/llm-d-inference-scheduler) llm-d uses the Envoy proxy and its extensible balancing policies to make customizable “smart” load-balancing decisions specifically for LLMs without reimplementing a full featured load balancer. Leveraging operational telemetry, the Inference Scheduler implements the filtering and scoring algorithms to make decisions with P/D-, KV-cache-, SLA-, and load-awareness. Advanced users can implement their own scorers to further customize the algorithm while benefiting from IGW features like flow control and latency-aware balancing. The control plane for the load balancer is the Kubernetes API but can also be run standalone.
+- [**Inference Scheduler:**](https://github.com/llm-d/llm-d-inference-scheduler) llm-d uses compatible Gateway implementations and their extensible balancing policies to make customizable “smart” load-balancing decisions specifically for LLMs without reimplementing a full-featured load balancer. Leveraging operational telemetry, the Inference Scheduler implements the filtering and scoring algorithms to make decisions with P/D-awareness, KV-cache-awareness, SLA-awareness, and load-awareness. Advanced users can implement their own scorers to further customize the algorithm while benefiting from IGW features like flow control and latency-aware balancing. The control plane for the load balancer is the Kubernetes API but can also be run standalone.
 
 - [**Disaggregated Serving Sidecar:**](https://github.com/llm-d/llm-d-inference-scheduler/tree/main/cmd/pd-sidecar) llm-d orchestrates prefill and decode phases onto independent instances - the scheduler decides which instances should receive a given request, and the transaction is coordinated via a sidecar alongside decode instances. The sidecar instructs vLLM to provide point to point KV cache transfer over fast interconnects (IB/RoCE RDMA, TPU ICI, and DCN) via NIXL.
 
@@ -96,7 +99,7 @@ Check out our [roadmap for upcoming releases](https://github.com/llm-d/llm-d/iss
 - Review [our contributing guidelines](CONTRIBUTING.md) for detailed information on how to contribute to the project.
 - Join one of our [Special Interest Groups (SIGs)](SIGS.md) to contribute to specific areas of the project and collaborate with domain experts.
 - We use Slack to discuss development across organizations. Please join: [Slack](https://llm-d.ai/slack)
-- We host a weekly standup for contributors on Wednesdays at 12:30 PM ET, as well as meetings for various SIGs. You can find them in the [shared llm-d calendar](https://red.ht/llm-d-public-calendar)
+- We host a bi-weekly standup for contributors every other Wednesday at 12:30 PM ET, as well as meetings for various SIGs. You can find them in the [shared llm-d calendar](https://red.ht/llm-d-public-calendar)
 - We use Google Groups to share architecture diagrams and other content. Please join: [Google Group](https://groups.google.com/g/llm-d-contributors)
 
 ## License

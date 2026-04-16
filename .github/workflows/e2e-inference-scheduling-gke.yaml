@@ -98,7 +98,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: auth
-        uses: google-github-actions/auth@b7593ed2efd1c1617e1b0254da33b86225adb2a5
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
         with:
           credentials_json: ${{ secrets.GKE_SA_KEY }}
 
@@ -114,7 +114,7 @@ jobs:
 
       - name: Install prerequisites
         run: |
-          ./guides/prereq/client-setup/install-deps.sh | tee ~/install-deps.log
+          ./helpers/client-setup/install-deps.sh | tee ~/install-deps.log
 
       - name: Create namespace
         run: |
@@ -257,7 +257,7 @@ jobs:
           mv ~/install-deps.log . || true
 
       - name: Upload pod logs as artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: llmd-pod-logs-inference-scheduling-${{ matrix.accelerator.name }}

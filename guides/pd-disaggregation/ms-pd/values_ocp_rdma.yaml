@@ -17,7 +17,7 @@ modelArtifacts:
 routing:
   servicePort: 8000
   proxy:
-    image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.6.0
+    image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.7.1
     connector: nixlv2
     secure: false
 
@@ -25,10 +25,12 @@ accelerator:  # controls specialized hardware Type
   type: nvidia
 
 decode:
+  create: true
+#  priorityClassName: nightly-gpu-critical
   replicas: 2
   initContainers:
     - name: preprocess
-      image: ghcr.io/llm-d/llm-d-benchmark:v0.5.1
+      image: ghcr.io/llm-d/llm-d-benchmark:v0.5.2
       imagePullPolicy: Always
       command: ["set_llmdbench_environment.py", "-e", "/shared-config/llmdbench_env.sh", "-i"]
       env:
@@ -43,7 +45,7 @@ decode:
     k8s.v1.cni.cncf.io/networks: "multi-nic-compute"
   containers:
   - name: "vllm"
-    image: ghcr.io/llm-d/llm-d-cuda:v0.5.1
+    image: ghcr.io/llm-d/llm-d-cuda:v0.6.0
     modelCommand: custom
     command:
       - /bin/bash
@@ -153,10 +155,12 @@ decode:
       emptyDir: {}
 
 prefill:
+  create: true
+#  priorityClassName: nightly-gpu-critical
   replicas: 1
   initContainers:
     - name: preprocess
-      image: ghcr.io/llm-d/llm-d-benchmark:v0.5.1
+      image: ghcr.io/llm-d/llm-d-benchmark:v0.5.2
       imagePullPolicy: Always
       command: ["set_llmdbench_environment.py", "-e", "/shared-config/llmdbench_env.sh", "-i"]
       env:
@@ -171,7 +175,7 @@ prefill:
     k8s.v1.cni.cncf.io/networks: "multi-nic-compute"
   containers:
   - name: "vllm"
-    image: ghcr.io/llm-d/llm-d-cuda:v0.5.1
+    image: ghcr.io/llm-d/llm-d-cuda:v0.6.0
     modelCommand: custom
     command:
       - /bin/bash

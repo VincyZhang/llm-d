@@ -27,14 +27,15 @@ modelArtifacts:
 routing:
   servicePort: 8000
   proxy:
-    image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.6.0
+    image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.7.1
     connector: nixlv2
     secure: false
 
 decode:
+  create: true
+#  priorityClassName: nightly-gpu-critical
   parallelism:
     tensor: 8
-  create: true
   replicas: 1
   extraConfig:
     nodeSelector:
@@ -48,7 +49,7 @@ decode:
       interval: "30s"
   containers:
     - name: "vllm"
-      image: vllm/vllm-tpu:v0.13.2-ironwood
+      image: vllm/vllm-tpu:v0.13.2
       modelCommand: vllmServe
       args:
         # Keep tensor-parallelism as the first set of arguments
@@ -128,9 +129,10 @@ decode:
       emptyDir: {}
 
 prefill:
+  create: true
+#  priorityClassName: nightly-gpu-critical
   parallelism:
     tensor: 8
-  create: true
   replicas: 2
   extraConfig:
     nodeSelector:

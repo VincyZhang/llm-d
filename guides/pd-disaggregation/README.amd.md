@@ -40,8 +40,7 @@ This guide expects 8 AMD GPUs of any kind, and RDMA via RoCE between all pods in
 
 ## Prerequisites
 
-* Have the [proper client tools installed on your local system](../prereq/client-setup/README.md) to use this guide.
-* Ensure your cluster infrastructure is sufficient to [deploy high scale inference](../prereq/infrastructure)
+* Have the [proper client tools installed on your local system](../../helpers/client-setup/README.md) to use this guide.
 * Configure and deploy your [Gateway control plane](../prereq/gateway-provider/README.md).
 * Have the [Monitoring stack](../../docs/monitoring/README.md) installed on your system.
 * Create a namespace for installation.
@@ -51,8 +50,7 @@ This guide expects 8 AMD GPUs of any kind, and RDMA via RoCE between all pods in
   kubectl create namespace ${NAMESPACE}
   ```
 
-* [Create the `llm-d-hf-token` secret in your target namespace with the key `HF_TOKEN` matching a valid HuggingFace token](../prereq/client-setup/README.md#huggingface-token) to pull models.
-* [Choose an llm-d version](../prereq/client-setup/README.md#llm-d-version)
+* [Create the `llm-d-hf-token` secret in your target namespace with the key `HF_TOKEN` matching a valid HuggingFace token](../../helpers/client-setup/hf-token.md) to pull models.
 
 ## Installation
 
@@ -151,7 +149,7 @@ helm list -n ${NAMESPACE}
 NAME        NAMESPACE   REVISION    UPDATED                                 STATUS      CHART                       APP VERSION
 gaie-pd     llm-d-pd    1           2026-02-04 16:08:57.461356878 +0000 UTC deployed    inferencepool-v1.4.0   v1.4.0
 infra-pd    llm-d-pd    1           2026-02-04 16:08:56.394680393 +0000 UTC deployed    llm-d-infra-v1.4.0          v0.4.0
-ms-pd       llm-d-pd    1           2026-02-04 16:08:59.144726828 +0000 UTC deployed    llm-d-modelservice-v0.4.7   v0.4.0   
+ms-pd       llm-d-pd    1           2026-02-04 16:08:59.144726828 +0000 UTC deployed    llm-d-modelservice-v0.4.9   v0.4.0
 ```
 
 * Out of the box with the example you should have the following resources:

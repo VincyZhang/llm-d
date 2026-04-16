@@ -25,6 +25,8 @@ environments:
     <<: *XPU
   hpu: &HPU
     <<: *I
+  oci_amd: &OCI_AMD
+    <<: *I
   ocp: &OCP
     <<: *I
   aks: &AKS
@@ -64,9 +66,13 @@ releases:
     needs:
       - {{ printf "infra-%s" $rn | quote }}
     values:
+    {{- if eq (env "INFERENCE_SERVER") "sglang" }}
+      - gaie-pd/values_sglang.yaml
+    {{- else }}
       - gaie-pd/values.yaml
+    {{- end }}
     # Apply provider name if on GKE
-    {{- if or (eq .Environment.Name "gke") (eq .Environment.Name "gke_tpu") }}
+    {{- if or (eq .Environment.Name "gke") (eq .Environment.Name "gke_tpu") (eq .Environment.Name "gke_pd_rdma") }}
       - provider:
           name: {{ .Environment.Values.provider.name }}
         inferenceExtension:
@@ -75,7 +81,7 @@ releases:
               enabled: true
     {{- end }}
     # Apply destination rule for anything istio
-    {{- if or (eq .Environment.Name "istio") (eq .Environment.Name "default") (eq .Environment.Name "aks") (eq .Environment.Name "amd") (eq .Environment.Name "xpu") (eq .Environment.Name "xpu_rdma") (eq .Environment.Name "hpu") (eq .Environment.Name "ocp") }}
+    {{- if or (eq .Environment.Name "istio") (eq .Environment.Name "default") (eq .Environment.Name "aks") (eq .Environment.Name "amd") (eq .Environment.Name "xpu") (eq .Environment.Name "xpu_rdma") (eq .Environment.Name "hpu") (eq .Environment.Name "oci_amd") (eq .Environment.Name "ocp") }}
       - provider:
           name: {{ .Environment.Values.provider.name }}
           istio:
@@ -110,12 +116,16 @@ releases:
       - ms-pd/values_xpu_rdma.yaml
     {{- else if eq .Environment.Name "hpu" }}
       - ms-pd/values_hpu.yaml
+    {{- else if eq .Environment.Name "oci_amd" }}
+      - ms-pd/values_oci_amd.yaml
     {{- else if eq .Environment.Name "ocp" }}
       - ms-pd/values_ocp_rdma.yaml
     {{- else if eq .Environment.Name "gke_tpu" }}
       - ms-pd/values_tpu.yaml
     {{- else if eq .Environment.Name "gke_pd_rdma" }}
       - ms-pd/values_gke_rdma.yaml
+    {{- else if eq (env "INFERENCE_SERVER") "sglang" }}
+      - ms-pd/values_sglang.yaml
     {{- else }}
       - ms-pd/values.yaml
     {{- end }}

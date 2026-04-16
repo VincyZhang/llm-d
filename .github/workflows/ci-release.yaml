@@ -16,6 +16,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: llm-d
   TAG: ${{ github.event.release.tag_name != '' && github.event.release.tag_name || github.ref_name }}
+  IS_STABLE: ${{ !contains(github.event.release.tag_name != '' && github.event.release.tag_name || github.ref_name, 'rc') }}
 
 jobs:
   release-cuda-llm-d:
@@ -66,10 +67,10 @@ jobs:
           echo "offloading_connector_version=${LLM_D_OFFLOADING_CONNECTOR_VERSION}" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.GHCR_USER }}
@@ -77,17 +78,17 @@ jobs:
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}-cuda${{ matrix.image_suffix }}
           tags: |
             type=raw,value=${{ github.event.release.tag_name }},enable=${{ github.event_name == 'release' && github.event.action == 'published' }}
             type=raw,value=${{ github.ref_name }},enable=${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
-            type=raw,value=latest,enable=true
+            type=raw,value=latest,enable=${{ env.IS_STABLE == 'true' }}
 
       - name: Build the builder image layer
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./docker/Dockerfile.cuda
@@ -121,7 +122,7 @@ jobs:
 
       - name: Build the final image layer
         id: build-image-final-layer
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./docker/Dockerfile.cuda
@@ -179,7 +180,7 @@ jobs:
           touch "/tmp/digests/${digest#sha256:}"
 
       - name: Upload digest
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: digests-cuda-${{ matrix.os }}-${{ matrix.platform == 'linux/arm64' && 'arm64' || 'amd64' }}
           path: /tmp/digests/*
@@ -294,11 +295,11 @@ jobs:
 
       - name: Set up Docker Buildx
         if: ${{ steps.should-run.outputs.os_succeeded == 'true' }}
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to Container Registry
         if: ${{ steps.should-run.outputs.os_succeeded == 'true' }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.GHCR_USER }}
@@ -307,7 +308,7 @@ jobs:
       - name: Extract metadata
         if: ${{ steps.should-run.outputs.os_succeeded == 'true' }}
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}-cuda${{ matrix.image_suffix }}
           tags: |
@@ -331,7 +332,9 @@ jobs:
 
           # create manifest and tag it
           tags="-t ${{ env.REGISTRY }}/${{ github.repository }}-cuda${{ matrix.image_suffix }}:${{ env.TAG }}"
-          tags="${tags} -t ${{ env.REGISTRY }}/${{ github.repository }}-cuda${{ matrix.image_suffix }}:latest"
+          if [ "${{ env.IS_STABLE }}" = "true" ]; then
+            tags="${tags} -t ${{ env.REGISTRY }}/${{ github.repository }}-cuda${{ matrix.image_suffix }}:latest"
+          fi
           docker buildx imagetools create $tags $sources
 
           # extract final manifest digest
@@ -410,10 +413,10 @@ jobs:
           echo "offloading_connector_version=${LLM_D_OFFLOADING_CONNECTOR_VERSION}" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.GHCR_USER }}
@@ -421,17 +424,17 @@ jobs:
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}-aws${{ matrix.image_suffix }}
           tags: |
             type=raw,value=${{ github.event.release.tag_name }},enable=${{ github.event_name == 'release' && github.event.action == 'published' }}
             type=raw,value=${{ github.ref_name }},enable=${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
-            type=raw,value=latest,enable=true
+            type=raw,value=latest,enable=${{ env.IS_STABLE == 'true' }}
 
       - name: Build the builder image layer
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./docker/Dockerfile.cuda
@@ -459,7 +462,7 @@ jobs:
 
       - name: Build the final image layer
         id: build-image-final-layer
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./docker/Dockerfile.cuda
@@ -511,7 +514,7 @@ jobs:
           touch "/tmp/digests/${digest#sha256:}"
 
       - name: Upload digest
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: digests-aws-${{ matrix.os }}-${{ matrix.platform == 'linux/arm64' && 'arm64' || 'amd64' }}
           path: /tmp/digests/*
@@ -594,11 +597,11 @@ jobs:
 
       - name: Set up Docker Buildx
         if: ${{ steps.should-run.outputs.rhel_ok == 'true' }}
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to Container Registry
         if: ${{ steps.should-run.outputs.rhel_ok == 'true' }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.GHCR_USER }}
@@ -607,7 +610,7 @@ jobs:
       - name: Extract metadata
         if: ${{ steps.should-run.outputs.rhel_ok == 'true' }}
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}-aws
           tags: |
@@ -631,7 +634,9 @@ jobs:
 
           # create manifest and tag it
           tags="-t ${{ env.REGISTRY }}/${{ github.repository }}-aws:${{ env.TAG }}"
-          tags="${tags} -t ${{ env.REGISTRY }}/${{ github.repository }}-aws:latest"
+          if [ "${{ env.IS_STABLE }}" = "true" ]; then
+            tags="${tags} -t ${{ env.REGISTRY }}/${{ github.repository }}-aws:latest"
+          fi
           docker buildx imagetools create $tags $sources
 
           # extract final manifest digest
@@ -687,12 +692,12 @@ jobs:
           echo "commit_sha=${VLLM_COMMIT_SHA}" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
         with:
           buildkitd-flags: --oci-worker-gc
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.GHCR_USER }}
@@ -700,7 +705,7 @@ jobs:
 
       - name: Build and push the image
         id: build-and-push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./docker/Dockerfile.cpu
@@ -715,7 +720,7 @@ jobs:
             VLLM_COMMIT_SHA=${{ steps.common-versions.outputs.commit_sha }}
           tags: |
             ${{ env.REGISTRY }}/${{ github.repository }}-cpu:${{ env.TAG }}
-            ${{ env.REGISTRY }}/${{ github.repository }}-cpu:latest
+            ${{ env.IS_STABLE == 'true' && format('{0}/{1}-cpu:latest', env.REGISTRY, github.repository) || '' }}
           github-token: ${{ secrets.GHCR_TOKEN }}
         env:
           DOCKER_BUILDKIT: "1"
@@ -759,12 +764,12 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
         with:
           buildkitd-flags: --oci-worker-gc
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.GHCR_USER }}
@@ -772,7 +777,7 @@ jobs:
 
       - name: Build and push the image
         id: build-and-push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./docker/Dockerfile.rocm
@@ -783,7 +788,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=rocm,oci-mediatypes=true,compression=zstd
           tags: |
             ${{ env.REGISTRY }}/${{ github.repository }}-rocm:${{ env.TAG }}
-            ${{ env.REGISTRY }}/${{ github.repository }}-rocm:latest
+            ${{ env.IS_STABLE == 'true' && format('{0}/{1}-rocm:latest', env.REGISTRY, github.repository) || '' }}
           github-token: ${{ secrets.GHCR_TOKEN }}
         env:
           DOCKER_BUILDKIT: "1"
@@ -836,12 +841,12 @@ jobs:
           echo "commit_sha=${VLLM_XPU_COMMIT_SHA}" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
         with:
           buildkitd-flags: --oci-worker-gc
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.GHCR_USER }}
@@ -850,13 +855,13 @@ jobs:
       - name: Checkout vLLM source
         uses: actions/checkout@v6
         with:
-          repository: ${{ steps.common-versions.outputs.repo }}
+          repository: vllm-project/vllm
           ref: ${{ steps.common-versions.outputs.commit_sha }}
           path: .cache/vllm-src
 
       - name: Build and push the image
         id: build-and-push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./.cache/vllm-src
           file: ./.cache/vllm-src/docker/Dockerfile.xpu
@@ -867,7 +872,7 @@ jobs:
           # cache-to: type=gha,mode=max,scope=xpu,oci-mediatypes=true,compression=zstd
           tags: |
             ${{ env.REGISTRY }}/${{ github.repository }}-xpu:${{ env.TAG }}
-            ${{ env.REGISTRY }}/${{ github.repository }}-xpu:latest
+            ${{ env.IS_STABLE == 'true' && format('{0}/{1}-xpu:latest', env.REGISTRY, github.repository) || '' }}
           github-token: ${{ secrets.GHCR_TOKEN }}
         env:
           DOCKER_BUILDKIT: "1"
@@ -902,7 +907,6 @@ jobs:
           fi
 
   release-hpu-llm-d:
-
     strategy:
       fail-fast: false
     runs-on: vllm-runner
@@ -914,7 +918,7 @@ jobs:
           fetch-depth: 0
 
       - name: Log in to Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.GHCR_USER }}
@@ -925,14 +929,17 @@ jobs:
         run: |
           export DEVICE=hpu
           export DOCKERFILE=Dockerfile.hpu
+          export BUILD_TYPE=prod
           export VERSION="${{ env.TAG }}"
           make image-build
           make image-push
           echo "tag=${{ env.TAG }}" >> $GITHUB_OUTPUT
-          # Also tag as latest
-          export NEW_TAG="latest"
-          make image-retag
-          VERSION="latest" make image-push
+          # Also tag as latest (only for stable releases, not RCs)
+          if [ "${{ env.IS_STABLE }}" = "true" ]; then
+            export NEW_TAG="latest"
+            make image-retag
+            VERSION="latest" make image-push
+          fi
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@v0.35.0
@@ -975,10 +982,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.GHCR_USER }}

@@ -1,5 +1,7 @@
 # Well-lit Path: Intelligent Inference Scheduling
 
+[![Nightly - Inference Scheduling E2E (OpenShift)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-inference-scheduling-ocp.yaml/badge.svg)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-inference-scheduling-ocp.yaml) [![Nightly - Inference Scheduling E2E (CKS)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-inference-scheduling-cks.yaml/badge.svg)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-inference-scheduling-cks.yaml) [![Nightly - Inference Scheduling E2E (GKE)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-inference-scheduling-gke.yaml/badge.svg)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-inference-scheduling-gke.yaml)
+
 ## Overview
 
 This guide deploys the recommended out of the box [scheduling configuration](https://github.com/llm-d/llm-d-inference-scheduler/blob/main/docs/architecture.md) for most vLLM and SGLang deployments, reducing tail latency and increasing throughput through load-aware and prefix-cache aware balancing. This can be run on two GPUs that can load [Qwen/Qwen3-32B](https://huggingface.co/Qwen/Qwen3-32B).
@@ -22,8 +24,7 @@ This example out of the box uses 16 GPUs (8 replicas x 2 GPUs each) of any suppo
 
 ## Prerequisites
 
-- Have the [proper client tools installed on your local system](../prereq/client-setup/README.md) to use this guide.
-- Ensure your cluster infrastructure is sufficient to [deploy high scale inference](../prereq/infrastructure)
+- Have the [proper client tools installed on your local system](../../helpers/client-setup/README.md) to use this guide.
 - Have the [Monitoring stack](../../docs/monitoring/README.md) installed on your system.
 - Create a namespace for installation.
 
@@ -32,8 +33,7 @@ This example out of the box uses 16 GPUs (8 replicas x 2 GPUs each) of any suppo
   kubectl create namespace ${NAMESPACE}
   ```
 
-- [Create the `llm-d-hf-token` secret in your target namespace with the key `HF_TOKEN` matching a valid HuggingFace token](../prereq/client-setup/README.md#huggingface-token) to pull models.
-- [Choose an llm-d version](../prereq/client-setup/README.md#llm-d-version)
+- [Create the `llm-d-hf-token` secret in your target namespace with the key `HF_TOKEN` matching a valid HuggingFace token](../../helpers/hf-token.md) to pull models.
 - Configure and deploy your [Gateway control plane](../prereq/gateway-provider/README.md)
 
 ## Installation
@@ -194,7 +194,7 @@ helm list -n ${NAMESPACE}
 NAME                        NAMESPACE                   REVISION  UPDATED                                 STATUS      CHART                       APP VERSION
 gaie-inference-scheduling   llm-d-inference-scheduler   1         2026-01-26 15:11:26.506854 +0200 IST    deployed    inferencepool-v1.4.0   v1.4.0
 infra-inference-scheduling  llm-d-inference-scheduler   1         2026-01-26 15:11:21.008163 +0200 IST    deployed    llm-d-infra-v1.4.0          v0.4.0
-ms-inference-scheduling     llm-d-inference-scheduler   1         2026-01-26 15:11:39.385111 +0200 IST    deployed    llm-d-modelservice-v0.4.7   v0.4.0
+ms-inference-scheduling     llm-d-inference-scheduler   1         2026-01-26 15:11:39.385111 +0200 IST    deployed    llm-d-modelservice-v0.4.9   v0.4.0
 ```
 
 - Out of the box with this example you should have the following resources:
@@ -272,7 +272,7 @@ For instructions on getting started making inference requests see [our docs](../
 
 ## Benchmarking
 
-To run benchmarks against the installed llm-d stack, you need [run_only.sh](https://github.com/llm-d/llm-d-benchmark/blob/main/existing_stack/run_only.sh), a template file from [./benchmark-templates](./benchmark-templates/), and a Persistent Volume Claim (PVC) to store the results (optional). Follow the instructions in the [benchmark doc](../benchmark/README.md).
+To run benchmarks against the installed llm-d stack, you need [run_only.sh](https://github.com/llm-d/llm-d-benchmark/blob/main/existing_stack/run_only.sh), a template file from [./benchmark-templates](./benchmark-templates/), and a Persistent Volume Claim (PVC) to store the results (optional). Follow the instructions in the [benchmark doc](../../helpers/benchmark.md).
 
 ### Example
 
@@ -280,7 +280,7 @@ This example uses [run_only.sh](https://github.com/llm-d/llm-d-benchmark/blob/ma
 
 The benchmark launches a pod (`llmdbench-harness-launcher`) that, in this case, uses `inference-perf` with a shared prefix synthetic workload named `shared_prefix_synthetic`. This workload runs several stages with different rates. The results will be stored on the provided PVC, accessible through the `llmdbench-harness-launcher` pod. Alternatively, results may be saved to a local folder or uploaded to a cloud storage bucket, by using the `-o` flag of `run_only.sh`. Each experiment is saved under the `requests` folder, e.g.,/`requests/inference-perf_<experiment ID>_shared_prefix_synthetic_inference-scheduling_<model name>` folder.
 
-Several results files will be created (see [Benchmark doc](../benchmark/README.md)), including a yaml file in a "standard" benchmark report format (see [Benchmark Report](https://github.com/llm-d/llm-d-benchmark/blob/main/docs/benchmark_report.md)).
+Several results files will be created (see [Benchmark doc](../../helpers/benchmark.md)), including a yaml file in a "standard" benchmark report format (see [Benchmark Report](https://github.com/llm-d/llm-d-benchmark/blob/main/docs/benchmark_report.md)).
 
   ```bash
   curl -L -O https://raw.githubusercontent.com/llm-d/llm-d-benchmark/main/existing_stack/run_only.sh
