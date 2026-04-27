@@ -1,0 +1,49 @@
+# RDMA overlay on top of xpu/ - adds RDMA transport env vars and DRA claim.
+# No privileged mode needed; DRA handles RDMA device allocation.
+#
+# Strategic merge: UCX_TLS is replaced (same key), UCX_MEMTYPE_CACHE is added,
+# rdma-claim is appended to claims and resourceClaims.
+---
+# decode: switch to RDMA transport and add RDMA DRA claim
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ms-pd-llm-d-modelservice-decode
+spec:
+  template:
+    spec:
+      containers:
+        - name: vllm
+          env:
+            - name: UCX_TLS
+              value: "ib,rc,ze_copy"
+            - name: UCX_MEMTYPE_CACHE
+              value: "0"
+          resources:
+            claims:
+              - name: rdma-claim
+      resourceClaims:
+        - name: rdma-claim
+          resourceClaimTemplateName: intel-rdma-claim-template
+---
+# prefill: switch to RDMA transport and add RDMA DRA claim
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ms-pd-llm-d-modelservice-prefill
+spec:
+  template:
+    spec:
+      containers:
+        - name: vllm
+          env:
+            - name: UCX_TLS
+              value: "ib,rc,ze_copy"
+            - name: UCX_MEMTYPE_CACHE
+              value: "0"
+          resources:
+            claims:
+              - name: rdma-claim
+      resourceClaims:
+        - name: rdma-claim
+          resourceClaimTemplateName: intel-rdma-claim-template

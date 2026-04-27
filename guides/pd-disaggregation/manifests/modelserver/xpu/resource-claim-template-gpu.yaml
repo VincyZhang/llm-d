@@ -1,0 +1,13 @@
+# DRA ResourceClaimTemplate for Intel XPU GPU allocation
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: intel-gpu-claim-template
+spec:
+  spec:
+    devices:
+      requests:
+        - name: intel
+          exactly:
+            deviceClassName: gpu.intel.com
+            count: 1

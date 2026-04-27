@@ -1,0 +1,177 @@
+# XPU DRA overlay: decode deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ms-pd-llm-d-modelservice-decode
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/hardware-variant: xpu
+      llm-d.ai/hardware-vendor: intel
+      llm-d.ai/model: Qwen3-0.6B
+  template:
+    metadata:
+      labels:
+        llm-d.ai/hardware-variant: xpu
+        llm-d.ai/hardware-vendor: intel
+        llm-d.ai/model: Qwen3-0.6B
+    spec:
+      securityContext:
+        fsGroup: 107
+        supplementalGroups:
+          - 107
+      containers:
+        - name: vllm
+          image: ghcr.io/llm-d/llm-d-xpu:v0.6.0
+          args:
+            - "--block-size"
+            - "64"
+            - "--kv-transfer-config"
+            - '{"kv_connector":"NixlConnector","kv_role":"kv_both","kv_buffer_device":"xpu"}'
+            - "--disable-access-log-for-endpoints=/health,/metrics,/v1/models"
+            - "--max-model-len"
+            - "32000"
+            - "--no-enable-prefix-caching"
+          env:
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: llm-d-hf-token
+                  key: HF_TOKEN
+            - name: UCX_TLS
+              value: "tcp"
+            - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: VLLM_NIXL_SIDE_CHANNEL_PORT
+              value: "5600"
+            - name: VLLM_USE_V1
+              value: "1"
+            - name: TORCH_LLM_ALLREDUCE
+              value: "1"
+            - name: VLLM_WORKER_MULTIPROC_METHOD
+              value: "spawn"
+            - name: ZE_AFFINITY_MASK
+              value: "3"
+          resources:
+            limits:
+              cpu: "4"
+              memory: 8Gi
+            requests:
+              cpu: "4"
+              memory: 8Gi
+            claims:
+              - name: gpu-claim
+          volumeMounts:
+            - name: driver
+              mountPath: /dev/dri
+      resourceClaims:
+        - name: gpu-claim
+          resourceClaimTemplateName: intel-gpu-claim-template
+      volumes:
+        # hostPath for Intel GPU device access; can be removed if the
+        # DRA driver handles /dev/dri exposure
+        - name: driver
+          hostPath:
+            path: /dev/dri
+---
+# XPU DRA overlay: prefill deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ms-pd-llm-d-modelservice-prefill
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/hardware-variant: xpu
+      llm-d.ai/hardware-vendor: intel
+      llm-d.ai/model: Qwen3-0.6B
+  template:
+    metadata:
+      labels:
+        llm-d.ai/hardware-variant: xpu
+        llm-d.ai/hardware-vendor: intel
+        llm-d.ai/model: Qwen3-0.6B
+    spec:
+      securityContext:
+        fsGroup: 107
+        supplementalGroups:
+          - 107
+      containers:
+        - name: vllm
+          image: ghcr.io/llm-d/llm-d-xpu:v0.6.0
+          args:
+            - "--block-size"
+            - "64"
+            - "--kv-transfer-config"
+            - '{"kv_connector":"NixlConnector","kv_role":"kv_both","kv_buffer_device":"xpu"}'
+            - "--disable-access-log-for-endpoints=/health,/metrics,/v1/models"
+            - "--max-model-len"
+            - "32000"
+            - "--no-enable-prefix-caching"
+          env:
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: llm-d-hf-token
+                  key: HF_TOKEN
+            - name: UCX_TLS
+              value: "tcp"
+            - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: VLLM_NIXL_SIDE_CHANNEL_PORT
+              value: "5600"
+            - name: VLLM_USE_V1
+              value: "1"
+            - name: TORCH_LLM_ALLREDUCE
+              value: "1"
+            - name: VLLM_WORKER_MULTIPROC_METHOD
+              value: "spawn"
+            - name: ZE_AFFINITY_MASK
+              value: "2"
+          resources:
+            limits:
+              cpu: "4"
+              memory: 8Gi
+            requests:
+              cpu: "4"
+              memory: 8Gi
+            claims:
+              - name: gpu-claim
+          volumeMounts:
+            - name: driver
+              mountPath: /dev/dri
+      resourceClaims:
+        - name: gpu-claim
+          resourceClaimTemplateName: intel-gpu-claim-template
+      volumes:
+        - name: driver
+          hostPath:
+            path: /dev/dri
+---
+# XPU DRA overlay: decode PodMonitor label override
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: ms-pd-llm-d-modelservice-decode-podmonitor
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/hardware-variant: xpu
+      llm-d.ai/hardware-vendor: intel
+      llm-d.ai/model: Qwen3-0.6B
+---
+# XPU DRA overlay: prefill PodMonitor label override
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: ms-pd-llm-d-modelservice-prefill-podmonitor
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/hardware-variant: xpu
+      llm-d.ai/hardware-vendor: intel
+      llm-d.ai/model: Qwen3-0.6B

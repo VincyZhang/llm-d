@@ -1,0 +1,16 @@
+# DRA ResourceClaimTemplate for RDMA network device allocation
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: intel-rdma-claim-template
+spec:
+  spec:
+    devices:
+      requests:
+        - name: rdma-dranet
+          exactly:
+            deviceClassName: rdma-dranet
+            count: 1
+            selectors:
+              - cel:
+                  expression: "true"
