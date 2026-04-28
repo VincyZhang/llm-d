@@ -64,7 +64,16 @@ cd guides/prereq/gateway-provider
 helmfile apply -f istio.helmfile.yaml
 ```
 
-## Step 3: Deploy the InferencePool (Helm)
+## Step 3: Create the Gateway Resource
+
+```shell
+cd guides/pd-disaggregation
+kubectl apply -n ${NAMESPACE} -k ../recipes/gateway/istio
+```
+
+> **Note**: This guide uses the shared `llm-d-inference-gateway` manifest from `guides/recipes/gateway/istio`.
+
+## Step 4: Deploy the InferencePool (Helm)
 
 Navigate to the `guides/pd-disaggregation` directory:
 
@@ -85,7 +94,7 @@ helm install llm-d-infpool \
 
 > **Note**: Change `--set "provider.name=istio"` to match your gateway provider (e.g., `gke`, `none`).
 
-## Step 4: Deploy the Model Server (Kustomize)
+## Step 5: Deploy the Model Server (Kustomize)
 
 ### Standard XPU (TCP transport)
 
@@ -100,7 +109,9 @@ kubectl apply -n ${NAMESPACE} -k ./manifests/modelserver/xpu-rdma
 ```
 
 > **Note**: The RDMA overlay inherits the `xpu/` base and adds RDMA-specific DRA claims
-> and UCX transport configuration. No privileged mode is needed — DRA handles device allocation.
+> and UCX transport configuration. It also inherits the same optional `llm-d-xpu-runtime-env`
+> injection from the `xpu/` base, so Hugging Face mirror, proxy, debug, and UCX overrides apply
+> to RDMA deployments the same way they do for the standard XPU path.
 
 ### Deployment Architecture
 
@@ -108,7 +119,7 @@ kubectl apply -n ${NAMESPACE} -k ./manifests/modelserver/xpu-rdma
 * **Prefill Service**: 1 replica with 1 Intel GPU (port 8000)
 * **RDMA variant**: Both decode and prefill use `UCX_TLS=ib,rc,ze_copy` for RDMA transport
 
-## Step 5: Verify Deployment
+## Step 6: Verify Deployment
 
 ### Check Pod Status
 
@@ -140,16 +151,16 @@ PREFILL_POD=$(kubectl get pods -n ${NAMESPACE} -l llm-d.ai/role=prefill -o jsonp
 kubectl logs -n ${NAMESPACE} ${PREFILL_POD} -c vllm -f
 ```
 
-## Step 6: Create HTTPRoute for Gateway Access
+## Step 7: Create HTTPRoute for Gateway Access
 
 ```shell
-kubectl apply -f httproute.yaml -n ${NAMESPACE}
+kubectl apply -f ../recipes/gateway/base/httproute.yaml -n ${NAMESPACE}
 
 # Verify
 kubectl get httproute -n ${NAMESPACE}
 ```
 
-## Step 7: Test PD Disaggregation Inference Service
+## Step 8: Test PD Disaggregation Inference Service
 
 ### Port Forwarding
 
@@ -182,6 +193,10 @@ curl -X POST "http://localhost:8086/v1/chat/completions" \
 kubectl delete -n ${NAMESPACE} -k ./manifests/modelserver/xpu-rdma
 # Or for standard XPU:
 # kubectl delete -n ${NAMESPACE} -k ./manifests/modelserver/xpu
+
+# Remove HTTPRoute and Gateway
+kubectl delete -n ${NAMESPACE} -f ../recipes/gateway/base/httproute.yaml
+kubectl delete -n ${NAMESPACE} -k ../recipes/gateway/istio
 
 # Remove InferencePool
 helm uninstall llm-d-infpool -n ${NAMESPACE}

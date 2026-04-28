@@ -95,10 +95,11 @@ jobs:
               - .github/workflows/e2e-pd-xpu.yaml
               - .github/scripts/e2e/**
               - docker/common-versions
-              - guides/**/values_xpu.yaml
-              - guides/pd-disaggregation/ms-pd/values_xpu.yaml
               - guides/pd-disaggregation/README.xpu.md
-              - guides/pd-disaggregation/helmfile.yaml.gotmpl
+              - guides/pd-disaggregation/manifests/inferencepool.values.yaml
+              - guides/pd-disaggregation/manifests/modelserver/xpu/**
+              - guides/recipes/gateway/base/**
+              - guides/recipes/gateway/istio/**
             xpu-prefix-cache:
               - .github/workflows/ci-pr-test.yaml
               - .github/workflows/e2e-prefix-cache-xpu.yaml

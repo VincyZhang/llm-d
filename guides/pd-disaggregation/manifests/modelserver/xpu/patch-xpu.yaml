@@ -23,9 +23,15 @@ spec:
       containers:
         - name: vllm
           image: ghcr.io/llm-d/llm-d-xpu:v0.6.0
+          envFrom:
+            - configMapRef:
+                name: llm-d-xpu-runtime-env
+                optional: true
           args:
             - "--block-size"
             - "64"
+            - "--port"
+            - "8200"
             - "--kv-transfer-config"
             - '{"kv_connector":"NixlConnector","kv_role":"kv_both","kv_buffer_device":"xpu"}'
             - "--disable-access-log-for-endpoints=/health,/metrics,/v1/models"
@@ -53,7 +59,7 @@ spec:
             - name: VLLM_WORKER_MULTIPROC_METHOD
               value: "spawn"
             - name: ZE_AFFINITY_MASK
-              value: "3"
+              value: "0"
           resources:
             limits:
               cpu: "4"
@@ -101,6 +107,10 @@ spec:
       containers:
         - name: vllm
           image: ghcr.io/llm-d/llm-d-xpu:v0.6.0
+          envFrom:
+            - configMapRef:
+                name: llm-d-xpu-runtime-env
+                optional: true
           args:
             - "--block-size"
             - "64"
@@ -131,7 +141,7 @@ spec:
             - name: VLLM_WORKER_MULTIPROC_METHOD
               value: "spawn"
             - name: ZE_AFFINITY_MASK
-              value: "2"
+              value: "0"
           resources:
             limits:
               cpu: "4"

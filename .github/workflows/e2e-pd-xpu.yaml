@@ -35,10 +35,6 @@ jobs:
     env:
       NAMESPACE: "llm-d-xpu-pd"
       GATEWAY_TYPE: "istio"
-      RELEASE_NAME_POSTFIX: "pd-xpu"
-      INFRA_RELEASE_NAME: "infra-pd-xpu"
-      GAIE_RELEASE_NAME: "gaie-pd-xpu"
-      MS_RELEASE_NAME: "ms-pd-xpu"
 
     steps:
       - name: Checkout
@@ -115,44 +111,38 @@ jobs:
               FULL_IMAGE="ghcr.io/${{ github.repository }}-xpu-dev:${CUSTOM_TAG}"
             fi
             echo "IMAGE_TAG=${CUSTOM_TAG}" >> $GITHUB_ENV
-            echo "HELM_SET_IMAGE=--set decode.containers[0].image=${FULL_IMAGE} --set decode.containers[0].imagePullPolicy=Always --set prefill.containers[0].image=${FULL_IMAGE} --set prefill.containers[0].imagePullPolicy=Always" >> $GITHUB_ENV
+            echo "MODELSERVER_IMAGE=${FULL_IMAGE}" >> $GITHUB_ENV
           else
             echo "Using default image tag from values file"
-            echo "HELM_SET_IMAGE=" >> $GITHUB_ENV
+            echo "MODELSERVER_IMAGE=" >> $GITHUB_ENV
           fi
 
       - name: Deploy guide
         run: |
           cd guides/pd-disaggregation
-          RELEASE_NAME_POSTFIX=${RELEASE_NAME_POSTFIX} \
-          helmfile apply -e xpu -n "${NAMESPACE}" ${HELM_SET_IMAGE} \
-            --skip-schema-validation \
+          kubectl apply -n "${NAMESPACE}" -k ../recipes/gateway/istio \
             | tee ~/pd-xpu-deployment.log
+          echo "---------------------------------------" >> ~/pd-xpu-deployment.log
+          helm install llm-d-infpool \
+            -n "${NAMESPACE}" \
+            -f ./manifests/inferencepool.values.yaml \
+            --set provider.name=istio \
+            oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool \
+            --version v1.4.0 \
+            | tee -a ~/pd-xpu-deployment.log
+          echo "---------------------------------------" >> ~/pd-xpu-deployment.log
+          if [ -n "${MODELSERVER_IMAGE}" ]; then
+            sed -i "s#ghcr.io/llm-d/llm-d-xpu:v0.6.0#${MODELSERVER_IMAGE}#g" ./manifests/modelserver/xpu/patch-xpu.yaml
+          fi
+          kubectl apply -n "${NAMESPACE}" -k ./manifests/modelserver/xpu \
+            | tee -a ~/pd-xpu-deployment.log
           echo "---------------------------------------" >> ~/pd-xpu-deployment.log
 
       - name: Deploy HTTPRoute
         run: |
-          cd guides/pd-disaggregation
-          echo "Deploying HTTPRoute with RELEASE_NAME_POSTFIX=${RELEASE_NAME_POSTFIX}..."
-          # Create a temporary HTTPRoute file with the correct names
-          sed -e "s/infra-pd-inference-gateway/${INFRA_RELEASE_NAME}-inference-gateway/g" \
-              -e "s/gaie-pd/${GAIE_RELEASE_NAME}/g" \
-              -e "s/name: llm-d-pd-disaggregation/name: llm-d-xpu-pd-${RELEASE_NAME_POSTFIX}/g" \
-              httproute.yaml > httproute-xpu.yaml
-          echo "Generated HTTPRoute configuration:"
-          cat httproute-xpu.yaml
-          kubectl apply -f httproute-xpu.yaml -n "${NAMESPACE}" \
+          kubectl apply -f guides/recipes/gateway/base/httproute.yaml -n "${NAMESPACE}" \
             | tee -a ~/pd-xpu-deployment.log
           echo "---------------------------------------" >> ~/pd-xpu-deployment.log
-
-      - name: fetch helm manifests - prepare for upload
-        run: |
-          for release_name in "${INFRA_RELEASE_NAME}" "${GAIE_RELEASE_NAME}" "${MS_RELEASE_NAME}"; do
-            bash .github/scripts/e2e/helm-get-all.sh \
-              ~/pd-xpu-deployment.log \
-              "$release_name" \
-              "$NAMESPACE"
-          done
 
       - name: Wait for all pods to be ready
         id: wait_pods
@@ -261,6 +251,8 @@ jobs:
       - name: Cleanup deployment
         if: always()
         run: |
-          cd guides/pd-disaggregation
-          helmfile destroy -e xpu -n "${NAMESPACE}"
+          kubectl delete -n "${NAMESPACE}" -f guides/recipes/gateway/base/httproute.yaml || true
+          kubectl delete -n "${NAMESPACE}" -k guides/pd-disaggregation/manifests/modelserver/xpu || true
+          helm uninstall llm-d-infpool -n "${NAMESPACE}" || true
+          kubectl delete -n "${NAMESPACE}" -k guides/recipes/gateway/istio || true
           kubectl delete ns ${NAMESPACE}

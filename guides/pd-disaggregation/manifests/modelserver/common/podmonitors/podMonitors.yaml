@@ -1,0 +1,35 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: ms-pd-llm-d-modelservice-decode-podmonitor
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/accelerator-vendor: nvidia
+      llm-d.ai/guide: pd-disaggregation
+      llm-d.ai/hardware-variant: gpu
+      llm-d.ai/inference-serving: "true"
+      llm-d.ai/model: gpt-oss-120b
+      llm-d.ai/role: decode
+  podMetricsEndpoints:
+  - port: "vllm"
+    path: /metrics
+    interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: ms-pd-llm-d-modelservice-prefill-podmonitor
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/accelerator-vendor: nvidia
+      llm-d.ai/guide: pd-disaggregation
+      llm-d.ai/hardware-variant: gpu
+      llm-d.ai/inference-serving: "true"
+      llm-d.ai/model: gpt-oss-120b
+      llm-d.ai/role: prefill
+  podMetricsEndpoints:
+  - port: "vllm"
+    path: /metrics
+    interval: 30s
