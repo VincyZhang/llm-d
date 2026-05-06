@@ -1,0 +1,58 @@
+name: Nightly - optimized baseline E2E (OpenShift)
+
+# Nightly regression test for the optimized-baseline guide on OpenShift.
+# Deploys via helmfile and validates with e2e-validate.sh.
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Midnight UTC daily
+  workflow_dispatch:
+    inputs:
+      helmfile_env:
+        description: 'Helmfile environment'
+        required: false
+        default: 'istio'
+        type: choice
+        options:
+          - istio
+          - kgateway
+      skip_cleanup:
+        description: 'Skip cleanup after tests (for debugging)'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-e2e-optimized-baseline
+  cancel-in-progress: true
+
+jobs:
+  nightly:
+    if: github.repository == 'llm-d/llm-d'
+    uses: llm-d/llm-d-infra/.github/workflows/reusable-nightly-e2e-openshift.yaml@main
+    with:
+      guide_name: optimized-baseline
+      namespace: llm-d-nightly-inference-ocp
+      gateway_host: 'optimized-baseline-epp'
+      custom_deploy_script: |
+        yq '.spec.template.spec.priorityClassName="nightly-gpu-critical"' -i guides/optimized-baseline/modelserver/gpu/vllm/patch-vllm.yaml
+        yq '.spec.template.spec.volumes += {"name": "triton-cache", "emptyDir": {}}' -i guides/optimized-baseline/modelserver/gpu/vllm/patch-vllm.yaml
+        yq '.spec.template.spec.containers[0].volumeMounts += {"mountPath": "/.triton", "name": "triton-cache"}' -i guides/optimized-baseline/modelserver/gpu/vllm/patch-vllm.yaml
+        yq '.spec.replicas=2' -i guides/optimized-baseline/modelserver/gpu/vllm/patch-vllm.yaml
+        kubectl apply -k guides/optimized-baseline/modelserver/gpu/vllm -n ${NAMESPACE}
+        helm install optimized-baseline \
+          oci://registry.k8s.io/gateway-api-inference-extension/charts/standalone \
+          -f guides/recipes/scheduler/base.values.yaml \
+          -f guides/optimized-baseline/scheduler/optimized-baseline.values.yaml \
+          -n ${NAMESPACE} --version v1.5.0
+      accelerator_type: H100
+      required_gpus: 2 
+      recommended_gpus: 4
+      pod_wait_timeout: '30m'
+      pod_readiness_delay: 180
+      image_override: 'ghcr.io/llm-d/llm-d-cuda-dev:latest'
+      allow_gpu_preemption: true
+      skip_cleanup: ${{ github.event.inputs.skip_cleanup == 'true' }}
+    secrets: inherit

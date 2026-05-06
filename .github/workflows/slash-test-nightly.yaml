@@ -9,7 +9,7 @@ name: /test-nightly Slash Command
 # Examples:
 #   /test-nightly pd-disaggregation-ocp
 #   /test-nightly *-ocp
-#   /test-nightly inference-scheduling-*
+#   /test-nightly optimized-baseline-*
 #   /test-nightly wva-*
 #
 # The command checks out the PR head, pushes a temp branch
@@ -18,8 +18,8 @@ name: /test-nightly Slash Command
 # Temp branches are cleaned up by slash-test-nightly-cleanup.yaml.
 #
 # Available nightlies (the part after /test-nightly):
-#   benchmark-cks, build-image, inference-scheduling-cks,
-#   inference-scheduling-gke, inference-scheduling-ocp,
+#   benchmark-cks, build-image, optimized-baseline-cks,
+#   optimized-baseline-gke, optimized-baseline-ocp,
 #   pd-disaggregation-cks, pd-disaggregation-gke,
 #   pd-disaggregation-ocp, precise-prefix-cache-ocp,
 #   simulated-accelerators, tiered-prefix-cache-ocp,
@@ -59,8 +59,8 @@ jobs:
 
             // Map name to workflow filename
             const E2E_NIGHTLIES = [
-              'inference-scheduling-cks', 'inference-scheduling-gke',
-              'inference-scheduling-ocp', 'pd-disaggregation-cks',
+              'optimized-baseline-cks', 'optimized-baseline-gke',
+              'optimized-baseline-ocp', 'pd-disaggregation-cks',
               'pd-disaggregation-gke', 'pd-disaggregation-ocp',
               'precise-prefix-cache-ocp', 'simulated-accelerators',
               'tiered-prefix-cache-ocp', 'wide-ep-lws-cks',
@@ -72,7 +72,7 @@ jobs:
 
             function toWorkflowFile(name) {
               if (E2E_NIGHTLIES.includes(name)) return `nightly-e2e-${name}.yaml`;
-              if (OTHER_NIGHTLIES.includes(name)) return `nightly-${name}.yaml`;
+              if (OTHER_NIGHTLIES.includes(name)) return `${name}.yaml`;
               return null;
             }
 
@@ -88,7 +88,7 @@ jobs:
                   '```',
                   '/test-nightly pd-disaggregation-ocp',
                   '/test-nightly *-ocp',
-                  '/test-nightly inference-scheduling-*',
+                  '/test-nightly optimized-baseline-*',
                   '```',
                   '',
                   'Available nightlies:',
@@ -202,10 +202,11 @@ jobs:
       # fork repo directly — GITHUB_TOKEN is scoped to the base repo only.
       - name: Checkout PR head
         if: steps.parse.outputs.result == 'ok' && steps.perm.outputs.result == 'ok'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: refs/pull/${{ steps.pr.outputs.pr_number }}/head
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Push temp branch (fork PRs only)
         if: steps.parse.outputs.result == 'ok' && steps.perm.outputs.result == 'ok'
@@ -215,13 +216,17 @@ jobs:
           MATCH_NAMES: ${{ steps.parse.outputs.match_names }}
           HEAD_REF: ${{ steps.pr.outputs.head_ref }}
           IS_FORK: ${{ steps.pr.outputs.is_fork }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WORKFLOW_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
         run: |
           if [ "$IS_FORK" = "true" ]; then
+            if [ -z "$WORKFLOW_TOKEN" ]; then
+              echo "::error::Fork PR /test-nightly runs require WORKFLOW_TOKEN to be configured with permission to push branches and trigger workflows (for example, a fine-grained PAT with Contents: write and Actions: write, or a classic PAT with repo and workflow scope)."
+              exit 1
+            fi
             # Include comment ID to avoid races when multiple /test-nightly
             # commands on the same PR run concurrently.
             BRANCH="test-nightly/pr-${PR_NUMBER}-${{ github.event.comment.id }}"
-            git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+            git remote set-url origin "https://x-access-token:${WORKFLOW_TOKEN}@github.com/${{ github.repository }}.git"
             git checkout -b "$BRANCH"
             # Add an empty commit so the branch tip has a fresh timestamp
             # (used by cleanup to determine branch age)

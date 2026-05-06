@@ -1,22 +1,18 @@
-# Well-lit Path: P/D Disaggregation
+# P/D Disaggregation
 
+NOT TESTED IN CI in OCP and GKE [![Nightly - PD Disaggregation E2E (CKS)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-pd-disaggregation-cks.yaml/badge.svg)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-pd-disaggregation-cks.yaml)
+<!--
 [![Nightly - PD Disaggregation E2E (OpenShift)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-pd-disaggregation-ocp.yaml/badge.svg)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-pd-disaggregation-ocp.yaml) [![Nightly - PD Disaggregation E2E (CKS)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-pd-disaggregation-cks.yaml/badge.svg)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-pd-disaggregation-cks.yaml) [![Nightly - PD Disaggregation E2E (GKE)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-pd-disaggregation-gke.yaml/badge.svg)](https://github.com/llm-d/llm-d/actions/workflows/nightly-e2e-pd-disaggregation-gke.yaml)
+-->
 
 ## Overview
 
-This guide demonstrates how to deploy GPT-OSS-120B using vLLM's P/D disaggregation support with NIXL. This guide has been validated on:
+This guide deploys `openai/gpt-oss-120b` with prefill-decode disaggregation, improving throughput per GPU and quality of service. Since disaggregation is natively built into llm-d Router, we can compose features like prefix- and load-aware routing with disaggregated serving. In this example, we will demonstrate a deployment with:
 
-* an 8xH200 cluster with InfiniBand networking
-* an 8xH200 cluster on GKE with RoCE networking
+* 8 TP=1 Prefill Instances
+* 2 TP=4 Decode Instances
 
-> WARNING: We are still investigating and optimizing performance for other hardware and networking configurations
-
-In this example, we will demonstrate a deployment of `openai/gpt-oss-120b` with:
-
-* 4 TP=1 Prefill Workers
-* 1 TP=4 Decode Worker
-
-## P/D Best Practices
+### P/D Best Practices
 
 P/D disaggregation provides more flexibility in navigating the trade-off between throughput and interactivity([ref](https://arxiv.org/html/2506.05508v1)).
 In particular, due to the elimination of prefill interference to the decode phase, P/D disaggregation can achieve lower inter token latency (ITL), thus
@@ -27,455 +23,462 @@ improving interactivity. For a given ITL goal, P/D disaggregation can benefit ov
 
 However, P/D disaggregation is not a target for all workloads. We suggest exploring P/D disaggregation for workloads with:
 
-* Large models (e.g. gpt-oss-120b+, not gpt-oss-20B)
+* Medium-large models (e.g. gpt-oss-120b)
 * Longer input sequence lengths (e.g 10k ISL | 1k OSL, not 200 ISL | 200 OSL)
-* Sparse MoE architectures with opportunities for wide-EP
+* Sparse MoE architectures with opportunities for wide-ep
 
 As a result, as you tune your P/D deployments, we suggest focusing on the following parameters:
 
 * **Heterogeneous Parallelism**: deploy P workers with less parallelism and more replicas and D workers with more parallelism and fewer replicas
 * **xPyD Ratios**: tuning the ratio of P workers to D workers to ensure balance for your ISL|OSL ratio
 
-For very large models leveraging wide-EP, traffic for KV cache transfer may contend with expert parallelism when the ISL|OSL ratio is also high. We recommend starting with RDMA for KV cache transfer before attempting to leverage TCP, as TCP transfer requires more tuning of UCX under NIXL.
+### Supported Hardware Backends
 
-## Hardware Requirements
+This guide includes configuration for the following accelerators:
 
-This guide expects 8 Nvidia GPUs of any kind, and RDMA via InfiniBand or RoCE between all pods in the workload.
+| Backend             | Directory                  | Notes                                                    |
+| ------------------- | -------------------------- | -------------------------------------------------------- |
+| NVIDIA GPU (vLLM)   | `modelserver/gpu/vllm/`    | vLLM, tested nightly                                     |
+| NVIDIA GPU (SGLang) | `modelserver/gpu/sglang/`  | SGLang, validated each release                           |
+| Google TPU          | `modelserver/tpu/vllm/`    | GKE TPU, validated each release                          |
+| AMD GPU             | `modelserver/amd/vllm/`    | AMD GPU, community contributed                           |
+| Intel XPU           | `modelserver/xpu/vllm/`    | Intel Data Center GPU Max 1550+, community contributed   |
+| Intel Gaudi (HPU)   | `modelserver/hpu/vllm/`    | Gaudi 1/2/3 with DRA support, community contributed      |
 
-### Intel HPU Hardware Requirements
-
-For Intel HPU deployments:
-* Intel Gaudi2/3 machine with at least 2 Gaudi2 cards.
+> [!NOTE]
+> Some hardware variants use reduced configurations (fewer replicas, smaller models) to enable CI testing for compatibility and regression checks. These configurations are maintained by their respective hardware vendors and are not guaranteed as production-ready examples. Users deploying on non-default hardware should review and adjust the configurations for their environment.
 
 ## Prerequisites
 
-* Have the [proper client tools installed on your local system](../../helpers/client-setup/README.md) to use this guide.
-* Configure and deploy your [Gateway control plane](../prereq/gateway-provider/README.md).
-* Have the [Monitoring stack](../../docs/monitoring/README.md) installed on your system.
-* Create a namespace for installation.
-
-  ```bash
-  export NAMESPACE=llm-d-pd # or any other namespace (shorter names recommended)
-  kubectl create namespace ${NAMESPACE}
-  ```
-
-* [Create the `llm-d-hf-token` secret in your target namespace with the key `HF_TOKEN` matching a valid HuggingFace token](../../helpers/client-setup/hf-token.md) to pull models.
-
-## Installation
-
-Use the helmfile to compose and install the stack. The Namespace in which the stack will be deployed will be derived from the `${NAMESPACE}` environment variable. If you have not set this, it will default to `llm-d-pd` in this example.
-
-### Deploy
-
+- Have the [proper client tools installed on your local system](../../helpers/client-setup/README.md) to use this guide.
+- Checkout llm-d repo:
 ```bash
-cd guides/pd-disaggregation
-helmfile apply -n ${NAMESPACE}
+export branch="main" # branch, tag, or commit hash
+git clone https://github.com/llm-d/llm-d.git && cd llm-d && git checkout ${branch}
 ```
-**For Intel HPU deployments**, use the HPU-specific environment:
-
+- Set the following environment variables:
 ```bash
-export NAMESPACE=llm-d-pd
-cd guides/pd-disaggregation
-helmfile apply -e hpu -n ${NAMESPACE}
+export GAIE_VERSION=v1.5.0
+export GUIDE_NAME="pd-disaggregation"
+export NAMESPACE="llm-d-pd-disaggregation"
+export MODEL_NAME="openai/gpt-oss-120b"
+```
+- Install the Gateway API Inference Extension CRDs:
+```bash
+kubectl apply -k "https://github.com/kubernetes-sigs/gateway-api-inference-extension/config/crd?ref=${GAIE_VERSION}"
+```
+- Create a target namespace for the installation
+```bash
+kubectl create namespace ${NAMESPACE}
 ```
 
-**_NOTE:_** You can set the `$RELEASE_NAME_POSTFIX` env variable to change the release names. This is how we support concurrent installs. Ex: `RELEASE_NAME_POSTFIX=pd-2 helmfile apply -n ${NAMESPACE}`
+## Installation Instructions
 
-**_NOTE:_** This uses Istio as the default provider, see [Gateway Options](./README.md#gateway-options) for installing with a specific provider.
+### 1. Deploy the llm-d Router
 
-### Gateway options
+#### Standalone Mode
 
-To see specify your gateway choice you can use the `-e <gateway option>` flag, ex:
-
-```bash
-helmfile apply -e agentgateway -n ${NAMESPACE} # preferred agentgateway path
-helmfile apply -e kgateway -n ${NAMESPACE}     # deprecated migration path
-```
-
-**_WARNING:_** `kgateway` is deprecated in llm-d and will be removed in the next release. Prefer `agentgateway` for new self-installed inference deployments.
-
-To see what gateway options are supported refer to our [gateway provider prereq doc](../prereq/gateway-provider/README.md#supported-providers). Gateway configurations per provider are tracked in the [gateway-configurations directory](../prereq/gateway-provider/common-configurations/).
-
-You can also customize your gateway, for more information on how to do that see our [gateway customization docs](../../docs/customizing-your-gateway.md).
-
-#### Infrastructure provider specifics
-
-This guide uses RDMA via InfiniBand or RoCE for disaggregated serving kv-cache transfer. The resource attributes required to configure accelerator networking are not yet standardized via [Kubernetes Dynamic Resource Allocation](https://kubernetes.io/docs/concepts/scheduling-eviction/dynamic-resource-allocation/) and so are parameterized per infra provider in the Helm charts. If your provider has a custom setting you will need to update the charts before deploying.
-
-##### OCI (Oracle Cloud Infrastructure)
-
-For OCI deployments, use `-e oci_amd` which configures SR-IOV RDMA networking and OCI-specific UCX transport variables:
+This deploys the llm-d Router with an Envoy sidecar, it doesn't set up a Kubernetes Gateway.
 
 ```bash
-helmfile apply -e oci_amd -n ${NAMESPACE}
+helm install ${GUIDE_NAME} \
+    oci://registry.k8s.io/gateway-api-inference-extension/charts/standalone \
+    -f guides/recipes/scheduler/base.values.yaml \
+    -f guides/recipes/scheduler/pd.values.yaml \
+    -f guides/${GUIDE_NAME}/scheduler/${GUIDE_NAME}.values.yaml \
+    -n ${NAMESPACE} --version ${GAIE_VERSION}
 ```
 
-An OKE Cluster with RDMA networking must be deployed prior to launching llm-d on OCI. Refer to [the oci-hpc-oke stack](https://github.com/oracle-quickstart/oci-hpc-oke) for deployment.
+<details>
+<summary><h4>Gateway Mode</h4></summary>
 
-**_NOTE:_** The `NetworkAttachmentDefinition` name (`sriov-rdma-vf`) and `nvidia.com/sriov-rdma-vf` resource label in `ms-pd/values_oci_amd.yaml` must match your cluster's SR-IOV device plugin configuration.
+To employ a Kubernetes Gateway managed proxy instead of the standalone one, then instead of applying the standalone helm chart above, do the following:
 
-**Common gotchas:**
-* If you change tensor parallelism, update both `podAnnotations` VF count and `nvidia.com/sriov-rdma-vf` resource requests to match
-* Wrong `UCX_IB_GID_INDEX` causes silent fallback to TCP — set `UCX_PROTO_INFO=y` to verify RDMA is selected
-* `IPC_LOCK` capability is required for RDMA pinned memory; without it NIXL transfers will fail
-
-### Install HTTPRoute
-
-Follow provider specific instructions for installing HTTPRoute.
-
-#### Install for "agentgateway", "kgateway" (deprecated), or "istio"
+1. *Deploy a Kubernetes Gateway*. Follow [the gateway guides](../prereq/gateways) for step by step deployment for a Gateway named `llm-d-inference-gateway`. You only need to create one Gateway for your cluster, all guides can share one Gateway each with a separate HTTPRoute. 
+2. *Deploy the llm-d Router and an HTTPRoute*. The following deploys the llm-d Router with an HttpRoute that connects it to the Gateway created in the previous step (set `provider.name` to the gateway provider you deployed):
 
 ```bash
-kubectl apply -f httproute.yaml -n ${NAMESPACE}
+export PROVIDER_NAME=gke # other na, agentgateway or istio
+helm install ${GUIDE_NAME} \
+    oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool  \
+    -f guides/recipes/scheduler/base.values.yaml \
+    -f guides/recipes/scheduler/pd.values.yaml \
+    -f guides/${GUIDE_NAME}/scheduler/${GUIDE_NAME}.values.yaml \
+    --set provider.name=${PROVIDER_NAME} \
+    --set experimentalHttpRoute.enabled=true \
+    --set experimentalHttpRoute.inferenceGatewayName=llm-d-inference-gateway \
+    -n ${NAMESPACE} --version ${GAIE_VERSION}
 ```
 
-#### Install for "gke"
+</details>
+
+### 2. Deploy the Model Server
+
+Apply the Kustomize overlays for your specific backend (defaulting to NVIDIA GPU / vLLM):
+
+> [!NOTE]
+> The Kubernetes ecosystem has not yet standardized on how to expose
+> NICs to pods. We provide some pre-configured setups for certain
+> Kubernetes providers. You may need to adapt the guides for the
+> specifics of your infrastructure provider. The provider specific
+> overlays deal with the specifics of each cloud's setup.
 
 ```bash
-kubectl apply -f httproute.gke.yaml -n ${NAMESPACE}
+export INFRA_PROVIDER=base # coreweave
+
+kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/${INFRA_PROVIDER}
 ```
 
-## Verify the Installation
+### 3. Enable Monitoring (optional)
 
-* Firstly, you should be able to list all helm releases to view the 3 charts got installed into your chosen namespace:
+> [!NOTE]
+> GKE provides [automatic application monitoring](https://docs.cloud.google.com/kubernetes-engine/docs/how-to/configure-automatic-application-monitoring) out of the box. The llm-d [Monitoring stack](../../docs/monitoring/README.md) is not required for GKE, but it is available if you prefer to use it.
+
+- Install the [Monitoring stack](../../docs/monitoring/README.md).
+- Deploy the monitoring resources for this guide.
 
 ```bash
-helm list -n ${NAMESPACE}
-NAME        NAMESPACE   REVISION    UPDATED                                 STATUS      CHART                       APP VERSION
-gaie-pd     llm-d-pd    1           2025-08-24 12:54:51.231537 -0700 PDT    deployed    inferencepool-v1.4.0        v1.4.0
-infra-pd    llm-d-pd    1           2025-08-24 12:54:46.983361 -0700 PDT    deployed    llm-d-infra-v1.4.0          v0.4.0
-ms-pd       llm-d-pd    1           2025-08-24 12:54:56.736873 -0700 PDT    deployed    llm-d-modelservice-v0.4.9   v0.4.0
+kubectl apply -n ${NAMESPACE} -k guides/recipes/modelserver/components/monitoring-pd
 ```
 
-* Out of the box with this example you should have the following resources:
+## Verification
+
+### 1. Get the IP of the Proxy
+
+**Standalone Mode**
 
 ```bash
-kubectl get all -n ${NAMESPACE}
-NAME                                                    READY   STATUS    RESTARTS   AGE
-pod/gaie-pd-epp-54444ddc66-qv6ds                        1/1     Running   0          2m35s
-pod/infra-pd-inference-gateway-istio-56d66db57f-zwtzn   1/1     Running   0          2m41s
-pod/ms-pd-llm-d-modelservice-decode-84bf6d5bdd-jzfjn    2/2     Running   0          2m30s
-pod/ms-pd-llm-d-modelservice-prefill-86f6fb7cdc-8kfb8   1/1     Running   0          2m30s
-pod/ms-pd-llm-d-modelservice-prefill-86f6fb7cdc-g6wmp   1/1     Running   0          2m30s
-pod/ms-pd-llm-d-modelservice-prefill-86f6fb7cdc-jx2w2   1/1     Running   0          2m30s
-pod/ms-pd-llm-d-modelservice-prefill-86f6fb7cdc-vzcb8   1/1     Running   0          2m30s
-
-NAME                                       TYPE           CLUSTER-IP    EXTERNAL-IP   PORT(S)                        AGE
-service/gaie-pd-epp                        ClusterIP      10.16.0.255   <none>        9002/TCP,9090/TCP              2m35s
-service/gaie-pd-ip-bb618139                ClusterIP      None          <none>        54321/TCP                      2m35s
-service/infra-pd-inference-gateway-istio   ClusterIP      10.16.3.74    10.16.4.3     15021:31707/TCP,80:34096/TCP   2m41s
-
-NAME                                               READY   UP-TO-DATE   AVAILABLE   AGE
-deployment.apps/gaie-pd-epp                        1/1     1            1           2m36s
-deployment.apps/infra-pd-inference-gateway-istio   1/1     1            1           2m42s
-deployment.apps/ms-pd-llm-d-modelservice-decode    1/1     1            1           2m31s
-deployment.apps/ms-pd-llm-d-modelservice-prefill   4/4     4            4           2m31s
-
-NAME                                                          DESIRED   CURRENT   READY   AGE
-replicaset.apps/gaie-pd-epp-54444ddc66                        1         1         1       2m36s
-replicaset.apps/infra-pd-inference-gateway-istio-56d66db57f   1         1         1       2m42s
-replicaset.apps/ms-pd-llm-d-modelservice-decode-84bf6d5bdd    1         1         1       2m31s
-replicaset.apps/ms-pd-llm-d-modelservice-prefill-86f6fb7cdc   4         4         4       2m31s
+export IP=$(kubectl get service ${GUIDE_NAME}-epp -n ${NAMESPACE} -o jsonpath='{.spec.clusterIP}')
 ```
 
-**_NOTE:_** This assumes no other guide deployments in your given `${NAMESPACE}` and you have not changed the default release names via the `${RELEASE_NAME}` environment variable.
-
-## Using the stack
-
-For instructions on getting started making inference requests see [our docs](../../docs/getting-started-inferencing.md)
-
-## Tuning Selective PD
-
-Selective PD is a feature in the `inference-scheduler` within the context of prefill-decode disaggregation, although it is disabled by default. This feature enables routing to just decode even with the P/D deployed. To enable it, you will need to set `threshold` value for the `pd-profile-handler` plugin, in the [GAIE values file](./gaie-pd/values.yaml). You can see the value of this here:
+<details>
+<summary> <b>Gateway Mode</b> </summary>
 
 ```bash
-cat gaie-pd/values.yaml | yq '.inferenceExtension.pluginsCustomConfig."pd-config.yaml"' | yq '.plugins[] | select(.type == "pd-profile-handler")'
-type: pd-profile-handler
-parameters:
-  threshold: 0 # update this
-  hashBlockSize: 5
+export IP=$(kubectl get gateway llm-d-inference-gateway -n ${NAMESPACE} -o jsonpath='{.status.addresses[0].value}')
+```
+</details>
+
+### 2. Send Test Requests
+
+**Open a temporary interactive shell inside the cluster:**
+
+```bash
+kubectl run curl-debug --rm -it \
+    --image=cfmanteiga/alpine-bash-curl-jq \
+    --env="IP=$IP" \
+    --env="NAMESPACE=$NAMESPACE" \
+    -- /bin/bash
 ```
 
-Some examples in which you might want to do selective PD might include:
+**Send a completion request:**
 
-* When the prompt is short enough that the amount of work split inference into prefill and decode phases, and then open a kv transfer between those two GPUs is greater than the amount of work to do both phases on the same decode inference worker.
-* When Prefill units are at full capacity.
-
-For information on this plugin, see our [`pd-profile-handler` docs in the inference-scheduler](https://github.com/llm-d/llm-d-inference-scheduler/blob/v0.7.0/docs/architecture.md?plain=1#L205-L210)
+```bash
+curl -X POST http://${IP}/v1/completions \
+    -H 'Content-Type: application/json' \
+    -d '{
+        "model": "openai/gpt-oss-120b",
+        "prompt": "How are you today?"
+    }' | jq
+```
 
 ## Benchmarking
 
-### Overview
-The primary objective of this benchmark is to validate the correctness of the P/D disaggregation setup.
+The benchmark launches a pod (`llmdbench-harness-launcher`) that, in this case, uses `inference-perf` with a synthetic workload named `20_1_isl_osl`. For more details, refer to the [benchmark instructions doc](../../helpers/benchmark.md).
 
-In this example, we deployed the user guide on GKE using the modified [Gateway options](./README.md#gateway-options) described above:
+### 1. Prepare the Benchmarking Suite
 
-```bash
-helmfile apply -e gke_pd_rdma -n ${NAMESPACE}
-```
-This setup serves the `openai/gpt-oss-120b` model using the following specifications:
-
-* Provider: GKE
-* Prefill: 1 instance with TP=8
-* Decode: 1 instance with TP=8
-* 2 `a3-ultragpu-8g` VMs, 16 GPUs
-
-### Verify the correctness
-
-```sh
-kubectl get pods -n $NAMESPACE
-NAME                                                READY   STATUS    RESTARTS   AGE
-gaie-pd-epp-764f94bb6f-dz9nr                        1/1     Running   0          40m
-ms-pd-llm-d-modelservice-decode-cc87cf9dc-bf8g7     2/2     Running   0          40m
-ms-pd-llm-d-modelservice-prefill-69444f978b-xlcll   1/1     Running   0          40m
-```
-
-Ensure that vLLM debug logging is enabled. Submit the following request to your endpoint:
-
-```sh
-curl -i http://<your_endpoint>/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "openai/gpt-oss-120b",
-    "messages": [
-      {
-        "role": "user",
-        "content": "<your prompt>"
-      }
-    ]
-  }'
-```
-
-Expected Results:
-
-On the prefill node, you should see the following log entry:
-
-```
-(APIServer pid=1) (EngineCore_DP0 pid=322) DEBUG 01-31 07:12:26 [distributed/.../v1/nixl_connector.py:725] NIXLConnector request_finished(chatcmpl-51b9a341-ca93-43f7-92fc-98b51f41d7e7), request_status=FINISHED_LENGTH_CAPPED, kv_transfer_params={'do_remote_decode': True, 'do_remote_prefill': False, 'remote_block_ids': None, 'remote_engine_id': None, 'remote_host': None, 'remote_port': None}
-```
-
-On the decode node, you should see the corresponding completion entry:
-
-```
-(APIServer pid=1) (EngineCore_DP0 pid=322) DEBUG 01-31 07:12:26 [distributed/.../v1/nixl_connector.py:725] NIXLConnector request_finished(chatcmpl-51b9a341-ca93-43f7-92fc-98b51f41d7e7), request_status=FINISHED_STOPPED, kv_transfer_params={'do_remote_decode': False, 'do_remote_prefill': False, 'remote_block_ids': [2, 3], 'remote_engine_id': '7520acd6-838a-4c0b-af97-a06e18a4f1c4', 'remote_host': '10.116.24.5', 'remote
-```
-
-
-### Run Benchmark
-
-We use the [inference-perf](https://github.com/kubernetes-sigs/inference-perf/tree/main) benchmark tool to verify the setup by generating random datasets with 1K input length and 1K output length across different concurrency levels.
-
-1. Deploy the inference PD stack following the Installation steps above. Once the stack is ready, obtain the gateway IP:
+- Download the benchmark script:
 
 ```bash
-export GATEWAY_IP=$(kubectl get gateway/llm-d-inference-gateway -n ${NAMESPACE} -o jsonpath='{.status.addresses[0].value}')
+curl -L -O https://raw.githubusercontent.com/llm-d/llm-d-benchmark/main/existing_stack/run_only.sh
+chmod u+x run_only.sh
 ```
 
-The `GATEWAY_IP` environment variable will be used in the [benchmark template](./benchmark-templates/guide.yaml).
+- [Create HuggingFace token](../../helpers/hf-token.md)
 
-2. Follow the [benchmark guide](../../helpers/benchmark.md) to deploy the benchmark tool and analyze the benchmark results. Notably, select the corresponding benchmark template:
+### 2. Download the Workload Template
 
 ```bash
-export BENCH_TEMPLATE_DIR="${LLMD_ROOT_DIR}"/guides/pd-disaggregation/benchmark-templates
-export BENCHMARK_TEMPLATE="${BENCH_TEMPLATE_DIR}"/guide.yaml
+curl -LJO "https://raw.githubusercontent.com/llm-d/llm-d/main/guides/pd-disaggregation/benchmark-templates/20_1_isl_osl.yaml"
 ```
 
-### Results
+### 3. Execute Benchmark
 
-<img src="latency_vs_concurrency.png" width="900" alt="Latency vs Concurrency">
-<img src="throughput_vs_concurrency.png" width="900" alt="Throughput vs Concurrency">
-<img src="throughput_vs_latency.png" width="900" alt="Throughput vs Latency">
+```bash
+envsubst < 20_1_isl_osl.yaml > config.yaml
+./run_only.sh -c config.yaml -o ./results
+```
+
+## Cleanup
+
+To remove the deployed components:
+
+```bash
+helm uninstall ${GUIDE_NAME} -n ${NAMESPACE}
+kubectl delete -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/gpu/vllm/${INFRA_PROVIDER}
+```
+
+## Benchmarking Report
+
+The benchmark is running on 16 H200 GPUs (with Infinband on CKS).
+
+There is a report for each stage.
 
 <details>
-<summary><b><i>Click</i></b> for contents of the overall summary file (<code>summary_lifecycle_metrics.json</code>)</summary>
+<summary><b><i>Click</i></b> here to view the report for `rate=45` from the above example</summary>
 
-  ```json
-  {
-    "load_summary": {
-      "count": 10500,
-      "schedule_delay": {
-        "mean": 77.6067300104108,
-        "min": -0.0009471391094848514,
-        "max": 193.36847741738893,
-        "p0.1": -0.0005135770575143397,
-        "p1": -9.381271200254551e-05,
-        "p5": 0.0006701549165882171,
-        "p10": 6.605916145677412,
-        "p25": 31.773801590898074,
-        "median": 69.96205037651816,
-        "p75": 120.88437926475308,
-        "p90": 157.18257419392472,
-        "p95": 172.30117548274575,
-        "p99": 193.24024071463967,
-        "p99.9": 193.34426271322974
-      }
-    },
-    "successes": {
-      "count": 10500,
-      "latency": {
-        "request_latency": {
-          "mean": 16.949693734689514,
-          "min": 7.430527747026645,
-          "max": 23.341206387034617,
-          "p0.1": 7.546646456788178,
-          "p1": 7.670289718103595,
-          "p5": 9.628040663100546,
-          "p10": 9.954197152797132,
-          "p25": 13.491928927513072,
-          "median": 17.363681015442125,
-          "p75": 20.775550709746312,
-          "p90": 21.703451853734443,
-          "p95": 22.43754903097288,
-          "p99": 23.146584392286606,
-          "p99.9": 23.29399677501375
-        },
-        "normalized_time_per_output_token": {
-          "mean": 0.017395157922218466,
-          "min": 0.007569078082287961,
-          "max": 0.05599903221818888,
-          "p0.1": 0.007666992976993649,
-          "p1": 0.007779649437568896,
-          "p5": 0.009792350577796686,
-          "p10": 0.01019379180393505,
-          "p25": 0.013799272786547731,
-          "median": 0.01784575978899651,
-          "p75": 0.02109968625327706,
-          "p90": 0.022346508134797133,
-          "p95": 0.02311641331519695,
-          "p99": 0.024021365913386925,
-          "p99.9": 0.0332398016193207
-        },
-        "time_per_output_token": {
-          "mean": 0.015854782856094884,
-          "min": 0.007178500500973314,
-          "max": 0.020949103697086684,
-          "p0.1": 0.007198484788668575,
-          "p1": 0.007428308323330711,
-          "p5": 0.009125048257928575,
-          "p10": 0.009484055226738564,
-          "p25": 0.01283546879797359,
-          "median": 0.016228663841495287,
-          "p75": 0.01970306675226311,
-          "p90": 0.020181560415274,
-          "p95": 0.020428766423888738,
-          "p99": 0.020664510622657836,
-          "p99.9": 0.020713284537798724
-        },
-        "time_to_first_token": {
-          "mean": 1.0639281511114733,
-          "min": 0.08917623397428542,
-          "max": 4.274269078974612,
-          "p0.1": 0.10329887501196935,
-          "p1": 0.12344494416029192,
-          "p5": 0.18211153338779695,
-          "p10": 0.22062120221089573,
-          "p25": 0.3119133528089151,
-          "median": 0.7006767939892597,
-          "p75": 1.1240748403070029,
-          "p90": 2.8348029804299584,
-          "p95": 3.3259600740275332,
-          "p99": 4.240478515403811,
-          "p99.9": 4.267909067379777
-        },
-        "inter_token_latency": {
-          "mean": 0.015854732319313614,
-          "min": 6.483984179794788e-06,
-          "max": 1.31577575893607,
-          "p0.1": 1.727902120910585e-05,
-          "p1": 0.005857429078314453,
-          "p5": 0.0076378712663427,
-          "p10": 0.009079416235908865,
-          "p25": 0.012070255470462143,
-          "median": 0.015335309086367488,
-          "p75": 0.017898101534228772,
-          "p90": 0.019151526875793936,
-          "p95": 0.021329846547450872,
-          "p99": 0.04715092248981833,
-          "p99.9": 0.19980837515836633
-        }
-      },
-      "throughput": {
-        "input_tokens_per_sec": 13641.337272379991,
-        "output_tokens_per_sec": 12925.396206067344,
-        "total_tokens_per_sec": 26566.733478447335,
-        "requests_per_sec": 13.241470097289648
-      },
-      "prompt_len": {
-        "mean": 1030.1980952380952,
-        "min": 1014.0,
-        "max": 1049.0,
-        "p0.1": 1014.0,
-        "p1": 1016.0,
-        "p5": 1020.0,
-        "p10": 1022.0,
-        "p25": 1025.0,
-        "median": 1030.0,
-        "p75": 1034.25,
-        "p90": 1039.0,
-        "p95": 1043.0,
-        "p99": 1048.0,
-        "p99.9": 1049.0
-      },
-      "output_len": {
-        "mean": 976.13,
-        "min": 390.0,
-        "max": 1007.0,
-        "p0.1": 561.998,
-        "p1": 870.0,
-        "p5": 947.0,
-        "p10": 961.0,
-        "p25": 972.0,
-        "median": 981.0,
-        "p75": 989.0,
-        "p90": 994.0,
-        "p95": 996.0,
-        "p99": 999.0,
-        "p99.9": 1001.0
-      }
-    },
-    "failures": {
-      "count": 0,
-      "request_latency": null,
-      "prompt_len": null
-    }
-  }
-  ```
+```yaml
+metrics:
+  latency:
+    inter_token_latency:
+      max: 0.3643897734582424
+      mean: 0.008325434739626478
+      min: 3.7653371691703796e-06
+      p0p1: 3.975816071033478e-06
+      p1: 4.145316779613495e-06
+      p10: 4.616566002368927e-06
+      p25: 5.087815225124359e-06
+      p5: 4.416331648826599e-06
+      p50: 6.280839443206787e-06
+      p75: 1.2137927114963531e-05
+      p90: 0.03592400047928101
+      p95: 0.06747404355555772
+      p99: 0.12114070571027777
+      p99p9: 0.18705207404308383
+      units: s/token
+    normalized_time_per_output_token:
+      max: 0.04898325727620708
+      mean: 0.014364489551937707
+      min: 0.0004188831798717112
+      p0p1: 0.0004855348222305054
+      p1: 0.008621003280209023
+      p10: 0.01086499850006588
+      p25: 0.011933319070146827
+      p5: 0.010361602989319029
+      p50: 0.013688608406590488
+      p75: 0.015965917295299104
+      p90: 0.018797610009301274
+      p95: 0.020827560955696416
+      p99: 0.02667838998102462
+      p99p9: 0.04062934044765229
+      units: s/token
+    request_latency:
+      max: 11.119199401699007
+      mean: 3.5384947839587997
+      min: 1.5062068477272987
+      p0p1: 1.9175463474858552
+      p1: 2.3823377661034466
+      p10: 2.6774717193096875
+      p25: 2.9338933038525283
+      p5: 2.5588959713466464
+      p50: 3.356982336845249
+      p75: 3.916417645290494
+      p90: 4.574965833220631
+      p95: 5.0852895775344225
+      p99: 6.531727972868838
+      p99p9: 9.935308576508453
+      units: s
+    time_per_output_token:
+      max: 0.010571206539869309
+      mean: 0.008325349373725296
+      min: 0.004886588230729103
+      p0p1: 0.005544693316236138
+      p1: 0.006968683542534709
+      p10: 0.007752664919942617
+      p25: 0.008032276449785117
+      p5: 0.007547358138114214
+      p50: 0.008331082850694657
+      p75: 0.008618501575663686
+      p90: 0.008902709059789777
+      p95: 0.009100843822024763
+      p99: 0.009630139790810646
+      p99p9: 0.010342120162323167
+      units: s/token
+    time_to_first_token:
+      max: 9.166204158216715
+      mean: 1.4439210383442265
+      min: 0.21261637564748526
+      p0p1: 0.25461369096953423
+      p1: 0.35444720844738187
+      p10: 0.5667089101858437
+      p25: 0.8372100500855595
+      p5: 0.4620446518063545
+      p50: 1.264039859175682
+      p75: 1.8248309704940766
+      p90: 2.4776970406062904
+      p95: 2.9816138751804835
+      p99: 4.4258010189700965
+      p99p9: 7.718557042311907
+      units: s
+  requests:
+    failures: 0
+    input_length:
+      max: 5209.0
+      mean: 5151.397962962963
+      min: 5104.0
+      p0p1: 5110.0
+      p1: 5118.0
+      p10: 5132.0
+      p25: 5141.0
+      p5: 5126.0
+      p50: 5151.0
+      p75: 5162.0
+      p90: 5171.0
+      p95: 5177.0
+      p99: 5187.0
+      p99p9: 5200.601000000001
+      units: count
+    output_length:
+      max: 5430.0
+      mean: 281.0096296296296
+      min: 76.0
+      p0p1: 190.798
+      p1: 224.0
+      p10: 240.0
+      p25: 243.0
+      p5: 237.0
+      p50: 246.0
+      p75: 248.0
+      p90: 249.0
+      p95: 250.0
+      p99: 253.0
+      p99p9: 5415.601000000001
+      units: count
+    total: 5400
+  throughput:
+    output_tokens_per_sec: 12236.597879353767
+    requests_per_sec: 43.54511941630466
+    total_tokens_per_sec: 236554.83733748455
+  time:
+    duration: 119.97667319700122
+scenario:
+  load:
+    args:
+      api:
+        headers: null
+        streaming: true
+        type: completion
+      circuit_breakers: null
+      data:
+        input_distribution:
+          max: 5000
+          mean: 5000.0
+          min: 5000
+          std_dev: 0.0
+          total_count: 5401
+        output_distribution:
+          max: 250
+          mean: 250.0
+          min: 250
+          std_dev: 0.0
+          total_count: 5401
+        path: null
+        shared_prefix: null
+        trace: null
+        type: random
+      load:
+        circuit_breakers: []
+        interval: 1.0
+        lora_traffic_split: null
+        num_workers: 45
+        request_timeout: null
+        stages:
+        - concurrency_level: null
+          duration: 120
+          num_requests: null
+          rate: 45.0
+        sweep: null
+        trace: null
+        type: constant
+        worker_max_concurrency: 100
+        worker_max_tcp_connections: 2500
+      metrics: null
+      report:
+        prometheus:
+          per_stage: false
+          summary: true
+        request_lifecycle:
+          per_adapter: true
+          per_adapter_stage: false
+          per_request: false
+          per_stage: true
+          percentiles:
+          - 0.1
+          - 1.0
+          - 5.0
+          - 10.0
+          - 25.0
+          - 50.0
+          - 75.0
+          - 90.0
+          - 95.0
+          - 99.0
+          - 99.9
+          summary: true
+      server:
+        api_key: null
+        base_url: http://10.16.2.220
+        cert_path: null
+        ignore_eos: true
+        key_path: null
+        model_name: openai/gpt-oss-120b
+        type: vllm
+      storage:
+        google_cloud_storage: null
+        local_storage:
+          path: /requests/inference-perf_1777579326_random_20_1_isl_osl_pd-gpt-oss-120b
+          report_file_prefix: null
+        simple_storage_service: null
+      tokenizer:
+        pretrained_model_name_or_path: openai/gpt-oss-120b
+        token: null
+        trust_remote_code: null
+    metadata:
+      stage: 0
+    name: inference-perf
+  model:
+    name: unknown
+version: '0.1'
+```
 
 </details>
 
 
-## Cleanup
+## Comparing llm-d P/D disaggregation to a k8s service
 
-To remove the deployment:
+The following scripts run the same benchmark against a standard deployment and service running `openai/gpt-oss-120b`.
 
+#### Run Baseline (Aggregated)
+
+- Deploy (16 replicas of TP=1, with a standard k8s service)
 ```bash
-# Remove the model services
-helmfile destroy -n ${NAMESPACE}
-
-# Remove the infrastructure
-helm uninstall ms-pd -n ${NAMESPACE}
-helm uninstall gaie-pd -n ${NAMESPACE}
-helm uninstall infra-pd -n ${NAMESPACE}
+kubectl apply -n ${NAMESPACE} -f guides/pd-disaggregation/baseline/manifest.yaml
 ```
 
-**_NOTE:_** If you set the `$RELEASE_NAME_POSTFIX` environment variable, your release names will be different from the command above: `infra-$RELEASE_NAME_POSTFIX`, `gaie-$RELEASE_NAME_POSTFIX` and `ms-$RELEASE_NAME_POSTFIX`.
-
-### Cleanup HTTPRoute
-
-Follow provider specific instructions for deleting HTTPRoute.
-
-#### Cleanup for "agentgateway", "kgateway" (deprecated), or "istio"
+- Benchmark (using the same configuration as above):
 
 ```bash
-kubectl delete -f httproute.yaml -n ${NAMESPACE}
+export IP=$(kubectl get service baseline -n ${NAMESPACE} -o jsonpath='{.spec.clusterIP}')
+envsubst < 20_1_isl_osl.yaml > config-baseline.yaml
+./run_only.sh -c config-baseline.yaml -o ./results-baseline
 ```
 
-#### Cleanup for "gke"
+For this workload (20:1 ISL:OSL, 45 QPS), llm-d disaggregation improved mean and P90 request latency by ~50%!
 
-```bash
-kubectl delete -f httproute.gke.yaml -n ${NAMESPACE}
-```
 
-## Customization
+| Metric                   | aggregated | llm-d        | Δ% |
+| :----------------------- | :--------- | :----------- | :------- |
+| **E2E Latency (Mean)**   | **6.7s**   | **3.5s**     | **-47%** |
+| **E2E Latency (P95)**    | **10.2s**  | **5.08**     | **-50%** |
+| ITL (Mean)               | 25ms       | 8ms          | -67%     |
+| ITL (P95)                | 197ms      | 67ms         | -66%     |
+| TTFT (Mean)              | 532ms      | 1400ms       | +170%    |
+| TTFT (P95)               | 1574ms     | 2471ms       | +57%     |
 
-For information on customizing a guide and tips to build your own, see [our docs](../../docs/customizing-a-guide.md)
+
+> ![NOTE]
+> In aggregated setup, vLLM allocates all GPU resources to 
+> processing prefills as they arrive. TTFT is elevated in the
+> disaggregated setup because less resources are allocated to
+> processing prefills.

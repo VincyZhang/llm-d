@@ -1,11 +1,15 @@
 # Gateway Provider Prerequisite
 
-This document will guide you through configuring a [Kubernetes Gateway](https://gateway-api.sigs.k8s.io/) provider that can support the llm-d [`inference-scheduler`](https://github.com/llm-d/llm-d-inference-scheduler) component.
+> [!WARNING]
+> OBSOLETE, WILL BE REMOVED ONCE ALL GUIDES MIGRATE TO KUSTOMIZE 
+
+
+This document will guide you through configuring a [Kubernetes Gateway](https://gateway-api.sigs.k8s.io/) provider that can support the **llm-d Router** component.
 
 The key elements are:
 
-* The `inference-scheduler` is an **endpoint picker (EPP)** that decides which model server a given request should go to
-* The **Inference Gateway `InferencePool` Custom Resource** that provisions and configures an `inference-scheduler` on a Kubernetes cluster
+* The **llm-d Router** is an **endpoint picker (EPP)** that decides which model server a given request should go to
+* The **llm-d Router `InferencePool` Custom Resource** that provisions and configures an **llm-d router** on a Kubernetes cluster
 * The **Gateway Custom Resources** that define the Kubernetes-native Gateway API and how traffic reaches an `InferencePool`
 * A **compatible Gateway implementation (control plane)** that provisions and configures load balancers and endpoint pickers in response to the Gateway API and InferencePool API
 
@@ -15,7 +19,7 @@ This prerequisite generally requires cluster administration rights.
 
 ## Why do you need a Gateway?
 
-The inference scheduler provides an extension to [compatible Gateway providers](https://gateway-api-inference-extension.sigs.k8s.io/implementations/gateways/) that optimizes load balancing of LLM traffic across model server replicas.
+The **llm-d router** provides an extension to [compatible Gateway providers](https://gateway-api-inference-extension.sigs.k8s.io/implementations/gateways/) that optimizes load balancing of LLM traffic across model server replicas.
 
 The integration with a Gateway allows self-hosted models to be exposed in a [wide variety of network topologies including](https://gateway-api.sigs.k8s.io/concepts/use-cases/):
 
@@ -75,7 +79,7 @@ llm-d provides helmfiles that install and configure `istio`, `kgateway`, and `ag
 The two self-installed inference modes are:
 
 * `agentgateway`: installs the `agentgateway` v1.0.0 control plane and data plane. This is the preferred self-installed inference path.
-* `kgateway`: installs the deprecated llm-d `kgateway` path using the `ghcr.io/kgateway-dev/charts/agentgateway*` charts at `v2.2.1`, with `inferenceExtension.enabled=true`. This path is retained only to support migrations.
+* `kgateway`: installs the deprecated llm-d `kgateway` path using the `ghcr.io/kgateway-dev/charts/agentgateway*` charts at `v2.2.3`, with `inferenceExtension.enabled=true`. This path is retained only to support migrations.
 
 Both self-installed inference modes use the `agentgateway` GatewayClass in llm-d guide manifests.
 
@@ -85,7 +89,7 @@ Prior to deploying a Gateway control plane, you must install the custom resource
 
     - [Gateway API v1.5.1 CRDs](https://github.com/kubernetes-sigs/gateway-api/tree/v1.5.1/config/crd)
       - for more information see their [docs](https://gateway-api.sigs.k8s.io/guides/)
-    - [Gateway API Inference Extension CRDs v1.4.0](https://github.com/kubernetes-sigs/gateway-api-inference-extension/tree/v1.4.0/config/crd)
+    - [Gateway API Inference Extension CRDs v1.5.0](https://github.com/kubernetes-sigs/gateway-api-inference-extension/tree/v1.5.0/config/crd)
       - for more information see their [docs](https://gateway-api-inference-extension.sigs.k8s.io/)
 
 We have provided the [`install-gateway-provider-dependencies.sh`](./install-gateway-provider-dependencies.sh) script:
@@ -99,7 +103,7 @@ To remove the created dependencies:
 You may specify any valid git source control reference for versions as `GATEWAY_API_CRD_REVISION` and `GATEWAY_API_INFERENCE_EXTENSION_CRD_REVISION`:
 
     export GATEWAY_API_CRD_REVISION="v1.5.1"
-    export GATEWAY_API_INFERENCE_EXTENSION_CRD_REVISION="v1.4.0"
+    export GATEWAY_API_INFERENCE_EXTENSION_CRD_REVISION="v1.5.0"
     ./install-gateway-provider-dependencies.sh
 
 ##### Installation
@@ -112,7 +116,7 @@ To install the gateway control plane:
 For the self-installed inference modes:
 
     helmfile apply -f agentgateway.helmfile.yaml  # preferred: agentgateway
-    helmfile apply -f kgateway.helmfile.yaml      # deprecated: kgateway path via the kgateway-dev agentgateway v2.2.1 charts
+    helmfile apply -f kgateway.helmfile.yaml      # deprecated: kgateway path via the kgateway-dev agentgateway v2.2.3 charts
 
 ##### Targeted install
 

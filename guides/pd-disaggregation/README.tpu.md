@@ -1,234 +1,300 @@
-# Google TPU P/D Disaggregation Deployment Guide
+# Prefill/Decode Disaggregation on Google TPU v7
 
-## Overview
+This guide demonstrates how to deploy `Qwen/Qwen3.5-397B-A17B-FP8` using prefill-decode (P/D) disaggregation on Google TPU v7 clusters. 
 
-This document provides complete steps for deploying a PD (Prefill-Decode) disaggregation service on a Google Kubernetes Engine (GKE) cluster using the Llama-3.3-70B-Instruct model. PD disaggregation separates the prefill and decode phases of inference, enabling more efficient resource utilization and improved throughput.
-
-For broader context or GPU setup, refer to this [p/d guide](./README.md)
-
-## Hardware Requirements
-
-This guide uses Cloud TPU v6e (Trillium) accelerators on Google Cloud Platform (GCP), specifically the `ct6e-standard-8t` machine type. You may also choose other compatible TPU VM topologies, e.g. ct6e-standard-1t (1x1), ct6e-standard-4t (2x2).
+For a comprehensive overview of P/D disaggregation architecture, best practices, and benchmarking, please refer to the **[Unified P/D Disaggregation Guide](./README.md)**.
 
 ## Prerequisites
 
-- Have the [proper client tools installed on your local system](../../helpers/client-setup/README.md) to use this guide.
-- Create a namespace for installation.
+Before starting, ensure your cluster and environment are properly configured:
 
-  ```bash
-  export NAMESPACE=llm-d-pd # or any other namespace (shorter names recommended)
-  kubectl create namespace ${NAMESPACE}
-  ```
-
-- [Create the `llm-d-hf-token` secret in your target namespace with the key `HF_TOKEN` matching a valid HuggingFace token](../../helpers/client-setup/hf-token.md) to pull models.
-
-## Installation Steps
-
-The following steps detail a fresh deployment of a PD disaggregation service on GKE using TPU accelerators. If you are using existing infrastructure, skip the relevant steps.
-
-### Step 1 Prepare GKE Cluster
-
-Please refer to [llm-d on GKE Documentation](../../docs/infra-providers/gke/README.md) to properly setup GKE cluster and GKE Inference Gateway.
-
-### Step 2 Install the Stack
-
-#### 2.1 Install the stack via helmfile
-
-Use the helmfile to compose and install the stack. The Namespace in which the stack will be deployed will be derived from the ${NAMESPACE} environment variable. If you have not set this, it will default to llm-d-pd in this example.
+1. **TPU Topology:** Your GKE cluster must have TPU v7 nodes provisioned with a `2x2x1` topology (4 chips per node) to accommodate the model requirements.
+   > [!NOTE]
+   > **TPUv7 Cores and Parallelism:** TPUv7 has 2 cores per chip. You need to consider this when setting parallelism. For example, in `guides/pd-disaggregation/modelserver/tpu/vllm/patch-decode.yaml`, with 4 chips per pod, the tensor parallel size (`--tensor-parallel-size`) is set to `8`. 
+2. Complete the **[Prerequisites](./README.md#prerequisites)** section in the main guide to clone the repository and install the Gateway API Inference Extension CRDs.
+3. Set your environment variables, overriding the model name for Qwen 3.5:
 
 ```bash
-cd guides/pd-disaggregation
-helmfile apply -e gke_tpu -n ${NAMESPACE}
+export GAIE_VERSION=v1.4.0
+export GUIDE_NAME="pd-disaggregation"
+export NAMESPACE="llm-d-pd-disaggregation"
+export MODEL_NAME="Qwen/Qwen3.5-397B-A17B-FP8"
 ```
 
-#### 2.2 Install HTTPRoute
+## Installation Instructions
 
-Apply the HTTPRoute configuration:
+### 1. Deploy the llm-d Router
+
+Deploy the router in either Standalone or Gateway mode by following the exact instructions in the **[Deploy the llm-d Router](./README.md#1-deploy-the-llm-d-router)** section of the main guide.
+
+### 2. Deploy the TPU Model Server
+
+Once the router is deployed, apply the Kustomize overlays specifically configured for TPU v7 and vLLM. This configuration sets up heterogeneous KV caches (HMA) and configures the TPU workers.
 
 ```bash
-kubectl apply -f httproute.gke.yaml -n ${NAMESPACE}
+kubectl apply -n ${NAMESPACE} -k guides/${GUIDE_NAME}/modelserver/tpu/vllm/
 ```
 
-## Verify the Installation
+*(Note: If you have monitoring enabled, you can optionally apply the monitoring components as described in the [main guide](./README.md#3-enable-monitoring-optional)).*
 
-- Firstly, you should be able to list all helm releases to view the 3 charts got installed into your chosen namespace:
+## Verification
+
+Follow the **[Verification steps in the main guide](./README.md#verification)** to retrieve the proxy IP address. 
+
+When sending your test request, ensure you use the correct TPU model name:
 
 ```bash
-helm list -n ${NAMESPACE}
-NAME     NAMESPACE  REVISION UPDATED                                 STATUS   CHART                      APP VERSION
-gaie-pd  llm-d-pd   1        2025-11-07 00:31:54.106881562 +0000 UTC deployed inferencepool-v1.4.0  v1.4.0
-infra-pd llm-d-pd   1        2025-11-07 00:31:50.355629868 +0000 UTC deployed llm-d-infra-v1.4.0         v0.4.0
-ms-pd    llm-d-pd   7        2025-11-07 17:45:30.946563039 +0000 UTC deployed llm-d-modelservice-v0.4.9  v0.4.0
-```
-
-- Out of the box with this example you should have the following resources:
-
-```bash
-kubectl get all -n ${NAMESPACE}
-NAME                                                    READY   STATUS    RESTARTS   AGE
-pod/gaie-pd-epp-5c7454f499-srrws                        1/1     Running   0          19h
-pod/ms-pd-llm-d-modelservice-decode-666666bcb4-jmfzg    2/2     Running   0          137m
-pod/ms-pd-llm-d-modelservice-prefill-855b6d74cc-7s66s   1/1     Running   0          136m
-pod/ms-pd-llm-d-modelservice-prefill-855b6d74cc-tmwt2   1/1     Running   0          136m
-
-NAME                           TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)             AGE
-service/gaie-pd-epp            ClusterIP   123.123.123.1   <none>        9002/TCP,9090/TCP   19h
-service/gaie-pd-ips-bb618139   ClusterIP   None            <none>        54321/TCP           19h
-
-NAME                                               READY   UP-TO-DATE   AVAILABLE   AGE
-deployment.apps/gaie-pd-epp                        1/1     1            1           19h
-deployment.apps/ms-pd-llm-d-modelservice-decode    1/1     1            1           19h
-deployment.apps/ms-pd-llm-d-modelservice-prefill   2/2     2            2           19h
-
-NAME                                                          DESIRED   CURRENT   READY   AGE
-replicaset.apps/gaie-pd-epp-5c7454f499                        1         1         1       19h
-replicaset.apps/ms-pd-llm-d-modelservice-decode-666666bcb4    1         1         1       137m
-replicaset.apps/ms-pd-llm-d-modelservice-prefill-855b6d74cc   2         2         2       137m
-```
-
-- The GKE Gateway should also be deployed in the namespace. Verify the GKE Gateway is programmed and has an address:
-
-```bash
-kubectl get gateway  -n ${NAMESPACE}
-
-NAME                         CLASS                              ADDRESS          PROGRAMMED   AGE
-infra-pd-inference-gateway   gke-l7-regional-external-managed   123.123.123.123   True         19h
-```
-
-**_NOTE:_** This assumes no other guide deployments in your given `${NAMESPACE}` and you have not changed the default release names via the `${RELEASE_NAME}` environment variable.
-
-## Using the stack
-
-1. Get the endpoint of GKE Gateway using below command
-
-    ```bash
-    export ENDPOINT="http://$(kubectl get gateway -n ${NAMESPACE} -o jsonpath='{.items[0].status.addresses[0].value}')"
-    echo "Using endpoint: $ENDPOINT"
-    ```
-
-1. Try curling the `/v1/models` endpoint:
-
-    ```bash
-    curl -s ${ENDPOINT}/v1/models \
-    -H "Content-Type: application/json" | jq
-    ```
-
-    Expected output:
-
-    ```json
-    {
-    "object": "list",
-    "data": [
-        {
-        "id": "meta-llama/Llama-3.3-70B-Instruct",
-        "object": "model",
-        "created": 1762546640,
-        "owned_by": "vllm",
-        "root": "meta-llama/Llama-3.3-70B-Instruct",
-        "parent": null,
-        "max_model_len": 32000,
-        "permission": [
-            {
-            "id": "modelperm-646be61270214738ab306c941871b7d6",
-            "object": "model_permission",
-            "created": 1762546640,
-            "allow_create_engine": false,
-            "allow_sampling": true,
-            "allow_logprobs": true,
-            "allow_search_indices": false,
-            "allow_view": true,
-            "allow_fine_tuning": false,
-            "organization": "*",
-            "group": null,
-            "is_blocking": false
-            }
-        ]
-        }
-    ]
-    }
-    ```
-
-1. Now let's try hitting the `/v1/completions` endpoint (this is model dependent, ensure your model matches what the server returns for the `v1/models` curl).
-
-    ```bash
-    curl -X POST ${ENDPOINT}/v1/completions \
+# Send a completion request to the TPU deployment
+curl -X POST http://${IP}/v1/completions \
     -H 'Content-Type: application/json' \
     -d '{
-        "model": "meta-llama/Llama-3.3-70B-Instruct",
-        "max_tokens": 64,
-        "prompt": "How are you today?"
+    "model": "Qwen/Qwen3.5-397B-A17B-FP8",
+    "prompt": "How are you today?"
     }' | jq
-    ```
+```
 
-    Expected output:
+## Benchmarking
 
-    ```json
-    {
-    "choices": [
-        {
-        "finish_reason": "length",
-        "index": 0,
-        "logprobs": null,
-        "prompt_logprobs": null,
-        "prompt_token_ids": null,
-        "stop_reason": null,
-        "text": " I hope you are having a great day. I am doing well, thanks for asking. I just wanted to share with you a few things that I have been thinking about lately. I have been thinking about how important it is to take care of ourselves, both physically and mentally. It is so easy to get caught up",
-        "token_ids": null
-        }
-    ],
-    "created": 1762546790,
-    "id": "cmpl-ef5fcbcb-4cd7-4c7b-a037-0333cc1f6a44",
-    "kv_transfer_params": {
-        "remote_block_ids": [
-        5
-        ],
-        "remote_host": "10.52.5.4",
-        "remote_port": "9100",
-        "uuid": 1223960640850184400
-    },
-    "model": "meta-llama/Llama-3.3-70B-Instruct",
-    "object": "text_completion",
-    "service_tier": null,
-    "system_fingerprint": null,
-    "usage": {
-        "completion_tokens": 64,
-        "prompt_tokens": 6,
-        "prompt_tokens_details": null,
-        "total_tokens": 70
-    }
-    }
-    ```
+The benchmark launches a pod (`llmdbench-harness-launcher`) that, in this case, uses `inference-perf` with a workload tailored for TPU v7. For more details, refer to the [benchmark instructions doc](../../helpers/benchmark.md).
 
-For more information see [our docs](../../docs/getting-started-inferencing.md)
+### 1. Prepare the Benchmarking Suite
 
-## Tuning Selective PD
+Follow the **[Prepare the Benchmarking Suite](./README.md#1-prepare-the-benchmarking-suite)** section in the main guide to download the benchmark script and configure your environment.
 
-Selective PD is a feature in the `inference-scheduler` within the context of prefill-decode disaggregation, although it is disabled by default. This feature enables routing to just decode even with the P/D deployed.
+### 2. Download the Workload Template
 
-For information on this plugin, see our [`pd-profile-handler` docs in the inference-scheduler](https://github.com/llm-d/llm-d-inference-scheduler/blob/v0.7.0/docs/architecture.md?plain=1#L205-L210)
+```bash
+curl -LJO "https://raw.githubusercontent.com/llm-d/llm-d/main/guides/pd-disaggregation/benchmark-templates/tpu_v7_qwen3_5.yaml"
+```
 
+### 3. Execute Benchmark
+
+```bash
+envsubst < tpu_v7_qwen3_5.yaml > config.yaml
+./run_only.sh -c config.yaml -o ./results
+```
 ## Cleanup
 
-To remove the deployment:
+To clean up your cluster, return to the **[Cleanup](./README.md#cleanup)** section of the unified guide.
 
-```bash
-# Remove the model services
-helmfile destroy -n ${NAMESPACE}
+## Benchmarking Report
 
-# Remove the infrastructure
-helm uninstall ms-pd -n ${NAMESPACE}
-helm uninstall gaie-pd -n ${NAMESPACE}
-helm uninstall infra-pd -n ${NAMESPACE}
+The benchmark is running on 8 TPU v7 chips (2 pods with 2x2x1 topology).
+
+<details>
+<summary><b><i>Click</i></b> here to view the report from the above example</summary>
+
+```yaml
+metrics:
+  latency:
+    inter_token_latency:
+      max: 0.11871303897351027
+      mean: 0.03709993095523411
+      min: 1.0403338819742203e-05
+      p0p1: 0.013160184264648708
+      p1: 0.02280808158684522
+      p10: 0.029356164345517754
+      p25: 0.030825229245238006
+      p5: 0.02448836083058268
+      p50: 0.03744487161748111
+      p75: 0.03906837245449424
+      p90: 0.039964481815695764
+      p95: 0.041592727601528164
+      p99: 0.11384667418431489
+      p99p9: 0.11746114251948896
+      units: s/token
+    normalized_time_per_output_token:
+      max: 2.7779783537300924
+      mean: 0.2842568107979318
+      min: 0.029594441250381756
+      p0p1: 0.029735615131422925
+      p1: 0.030888821579850418
+      p10: 0.035099310792975305
+      p25: 0.04077153328666373
+      p5: 0.03269792121700837
+      p50: 0.04940501823814711
+      p75: 0.12363602356580884
+      p90: 0.9653475074046894
+      p95: 1.7841524277951812
+      p99: 2.613900897125423
+      p99p9: 2.763221654085458
+      units: s/token
+    request_latency:
+      max: 48.89155744481832
+      mean: 40.75879854830758
+      min: 30.275113399140537
+      p0p1: 30.419534279445653
+      p1: 31.60522086889483
+      p10: 34.29674377823248
+      p25: 36.024264448089525
+      p5: 33.0178924552165
+      p50: 41.63587325881235
+      p75: 45.15355795517098
+      p90: 46.39733429183252
+      p95: 47.46805788658094
+      p99: 48.67747580135707
+      p99p9: 48.878356086750514
+      units: s
+    time_per_output_token:
+      max: 0.042322098327076674
+      mean: 0.03709993095523411
+      min: 0.028353755577427364
+      p0p1: 0.028425141042895574
+      p1: 0.02902252048457285
+      p10: 0.031067102653969413
+      p25: 0.03285369381762848
+      p5: 0.030236626909822917
+      p50: 0.037827638220733206
+      p75: 0.04145547172083752
+      p90: 0.04199908757545927
+      p95: 0.042118943076252434
+      p99: 0.04224829734961077
+      p99p9: 0.042314721216826
+      units: s/token
+    time_to_first_token:
+      max: 5.874797150027007
+      mean: 2.7547412356943823
+      min: 1.226183040998876
+      p0p1: 1.2268008035453968
+      p1: 1.2345757358893752
+      p10: 1.598983020056039
+      p25: 1.953679692815058
+      p5: 1.280670134886168
+      p50: 2.5601073873694986
+      p75: 3.450429807882756
+      p90: 4.046125307539478
+      p95: 4.639469341677613
+      p99: 5.70049525849987
+      p99p9: 5.867744437836111
+      units: s
+  requests:
+    failures: 0
+    input_length:
+      max: 1072.0
+      mean: 1050.175
+      min: 1036.0
+      p0p1: 1036.0
+      p1: 1036.38
+      p10: 1041.0
+      p25: 1046.0
+      p5: 1039.0
+      p50: 1050.0
+      p75: 1055.0
+      p90: 1059.0
+      p95: 1060.05
+      p99: 1062.0
+      p99p9: 1070.8100000000002
+      units: count
+    output_length:
+      max: 1041.0
+      mean: 682.775
+      min: 15.0
+      p0p1: 15.119
+      p1: 16.0
+      p10: 43.300000000000004
+      p25: 330.75
+      p5: 21.95
+      p50: 842.0
+      p75: 1023.0
+      p90: 1024.0
+      p95: 1024.0
+      p99: 1024.0
+      p99p9: 1038.9770000000003
+      units: count
+    total: 120
+  throughput:
+    output_tokens_per_sec: 536.2990930576744
+    requests_per_sec: 0.7854697273006106
+    total_tokens_per_sec: 1361.179763925593
+  time:
+    duration: 117.41250333702192
+scenario:
+  load:
+    args:
+      api:
+        headers: null
+        streaming: true
+        type: completion
+      circuit_breakers: null
+      data:
+        input_distribution:
+          max: 1024
+          mean: 1024.0
+          min: 1024
+          std_dev: 0.0
+          total_count: 121
+        output_distribution:
+          max: 1024
+          mean: 1024.0
+          min: 1024
+          std_dev: 0.0
+          total_count: 121
+        path: null
+        shared_prefix: null
+        trace: null
+        type: random
+      load:
+        circuit_breakers: []
+        interval: 1.0
+        lora_traffic_split: null
+        num_workers: 100
+        request_timeout: null
+        stages:
+        - concurrency_level: null
+          duration: 120
+          num_requests: null
+          rate: 1.0
+        sweep: null
+        trace: null
+        type: constant
+        worker_max_concurrency: 100
+        worker_max_tcp_connections: 2500
+      metrics: null
+      report:
+        prometheus:
+          per_stage: false
+          summary: true
+        request_lifecycle:
+          per_adapter: true
+          per_adapter_stage: false
+          per_request: false
+          per_stage: true
+          percentiles:
+          - 0.1
+          - 1.0
+          - 5.0
+          - 10.0
+          - 25.0
+          - 50.0
+          - 75.0
+          - 90.0
+          - 95.0
+          - 99.0
+          - 99.9
+          summary: true
+      server:
+        api_key: null
+        base_url: http://10.0.235.214
+        cert_path: null
+        ignore_eos: true
+        key_path: null
+        model_name: Qwen/Qwen3.5-397B-A17B-FP8
+        type: vllm
+      storage:
+        google_cloud_storage: null
+        local_storage:
+          path: /requests/inference-perf_1777686654_random_1k_1k_isl_osl_tpu-v7-qwen3-5-pd
+          report_file_prefix: null
+        simple_storage_service: null
+      tokenizer:
+        pretrained_model_name_or_path: Qwen/Qwen3.5-397B-A17B-FP8
+        token: null
+        trust_remote_code: null
+    metadata:
+      stage: 0
+    name: inference-perf
+  model:
+    name: unknown
+version: '0.1'
+
 ```
-
-**_NOTE:_** If you set the `$RELEASE_NAME_POSTFIX` environment variable, your release names will be different from the command above: `infra-$RELEASE_NAME_POSTFIX`, `gaie-$RELEASE_NAME_POSTFIX` and `ms-$RELEASE_NAME_POSTFIX`.
-
-### Cleanup HTTPRoute
-
-```bash
-kubectl delete -f httproute.gke.yaml -n ${NAMESPACE}
-```
-
-## Customization
-
-For information on customizing a guide and tips to build your own, see [our docs](../../docs/customizing-a-guide.md)

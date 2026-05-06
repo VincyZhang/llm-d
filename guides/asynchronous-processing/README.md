@@ -1,4 +1,4 @@
-# Experimental Feature: Asynchronous Processing with Async Processor
+# [Experimental] Asynchronous Processing with Async Processor
 
 The [Async Processor](https://github.com/llm-d-incubation/llm-d-async) provides a way to process inference requests asynchronously using a queue-based architecture. This is ideal for latency-insensitive workloads or for filling "slack" capacity in your inference pool.
 
@@ -23,41 +23,44 @@ Before installing Async Processor, ensure you have:
    - For local development, you can use **Kind** or **Minikube**.
    - For production, GKE, AKS, or OpenShift are supported.
 2. **Gateway control plane**: Configure and deploy your [Gateway control plane](../prereq/gateway-provider/README.md) (e.g., Istio) before installation.
-3. **llm-d Inference Stack**: Async Processor requires an existing [Intelligent Inference Scheduling](../inference-scheduling/README.md) stack to dispatch requests to.
+3. **llm-d Inference Stack**: Async Processor requires an existing [optimized baseline](../optimized-baseline/README.md) stack to dispatch requests to.
 
 ## Installation
 
-Async Processor can be installed via Helm. We provide a `helmfile` for easy deployment.
+Async Processor can be installed via Helm. We recommend following the pattern used in the [optimized baseline](../optimized-baseline/README.md) guide.
 
-### Step 1: Configure Inference Gateway URL
+#### Step 1: Deploy llm-d Router
 
-The Async Processor needs to know where to send the requests it pulls from the queue. This is configured via the `IGW_BASE_URL` environment variable. 
-
-By default, it is set to `http://infra-inference-scheduling-inference-gateway-istio.llm-d-inference-scheduler.svc.cluster.local:80`, which assumes you have deployed the [Intelligent Inference Scheduling](../inference-scheduling/README.md) stack in the `llm-d-inference-scheduler` namespace. 
-
-If your Inference Gateway is deployed elsewhere, or if you are using a different service name (e.g., based on the [Gateway Provider](../prereq/gateway-provider/README.md) guide), export the variable before running helmfile:
+Apply the [optimized baseline](../optimized-baseline/README.md) guide and get the llm-d Router's IP address:
 
 ```bash
-export IGW_BASE_URL="<your-inference-gateway-service-url>"
+# If using Standalone Mode:
+export IP=$(kubectl get service optimized-baseline-epp -n llm-d-optimized-baseline -o jsonpath='{.spec.clusterIP}')
+
+# If using Gateway Mode:
+export IP=$(kubectl get gateway llm-d-inference-gateway -n llm-d-optimized-baseline -o jsonpath='{.status.addresses[0].value}')
 ```
 
-### Step 2: Choose your Queue Implementation
+#### Step 2: Configure Values
 
-Decide whether you want to use GCP Pub/Sub or Redis. Follow the setup instructions in the respective subdirectories:
+Choose your queue implementation (GCP Pub/Sub or Redis) and configure the corresponding `values.yaml` file:
+- `guides/asynchronous-processing/gcp-pubsub/values.yaml`
+- `guides/asynchronous-processing/redis/values.yaml`
 
-- [GCP Pub/Sub Setup](./gcp-pubsub/README.md)
-- [Redis Setup](./redis/README.md)
+#### Step 3: Deploy Async Processor
 
-### Step 3: Configure Async Processor Values
-
-Edit the `values.yaml` in the chosen implementation folder to match your environment.
-
-### Step 4: Deploy
+Deploy the Async Processor using the selected queue implementation's configuration:
 
 ```bash
 export NAMESPACE=llm-d-async
-cd guides/asynchronous-processing
-helmfile apply -n ${NAMESPACE}
+export MQ_PROVIDER=gcp-pubsub # options are gcp-pubsub or redis
+export ASYNC_VERSION=0.6.1
+
+helm install async-processor \
+    oci://ghcr.io/llm-d-incubation/charts/async-processor \
+    -f guides/asynchronous-processing/${MQ_PROVIDER}/values.yaml \
+    --set ap.igwBaseURL=http://${IP}:80 \
+    -n ${NAMESPACE} --create-namespace --version ${ASYNC_VERSION}
 ```
 
 ## Testing
@@ -70,13 +73,5 @@ Testing instructions vary depending on the chosen queue implementation. Please r
 ## Cleanup
 
 ```bash
-cd guides/asynchronous-processing
-helmfile destroy -n ${NAMESPACE}
+helm uninstall async-processor -n ${NAMESPACE}
 ```
-
-
-
-
-
-
-

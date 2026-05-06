@@ -13,13 +13,10 @@ on:
       - guides/**/*.yaml
       - guides/**/*.yml
       - guides/**/*.gotmpl
-  # Upstream PRs: runs workflow from the PR branch (trusts org members' workflow changes)
-  pull_request:
-    types: [opened, synchronize, reopened]
-    branches: [main]
-  # Fork PRs: runs workflow from main (safe for untrusted code, secrets available via label gate)
+  # All PRs use pull_request_target so workflow code runs from main (secrets available for forks).
+  # Secrets are gated behind a GitHub Environment with required reviewers.
   pull_request_target:
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened]
     branches: [main]
   workflow_dispatch:
     inputs:
@@ -44,35 +41,61 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Gate: determine whether this workflow run should proceed.
-  # Both pull_request and pull_request_target fire for all PRs, so we must ensure
-  # only one of them proceeds per PR to avoid duplicate runs:
-  # - pull_request: only proceeds for upstream PRs (head repo == base repo).
-  #   Runs the PR branch's workflow code, so org members' workflow changes take effect.
-  # - pull_request_target: only proceeds for fork PRs with 'ok-to-build' label.
-  #   Runs main's workflow code (safe), checks out PR code via ref input.
-  # - push/workflow_dispatch: always proceeds.
-  fork-gate:
+  # Quick check: do any image-related files have changes?
+  # Runs immediately without approval — only reads the GitHub API diff,
+  # does not execute PR code. Used to skip the approval gate when no
+  # images need building.
+  needs-build-check:
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    outputs:
+      any_image_changes: ${{ steps.check.outputs.any_image_changes }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            images:
+              - 'docker/**'
+              - 'patches/**'
+              - 'scripts/**'
+      - name: Summarize
+        id: check
+        run: |
+          echo "any_image_changes=${{ steps.filter.outputs.images }}" >> $GITHUB_OUTPUT
+
+  # Gate: require approval only when image-related files changed.
+  # For pull_request_target (fork PRs): requires approval from a maintainer via
+  # the "build-approval" GitHub Environment with required reviewers.
+  # Skipped entirely when no image files changed — builds will be skipped anyway.
+  # For push/workflow_dispatch: proceeds automatically via auto-gate.
+  pr-gate:
+    needs: [needs-build-check]
     if: >-
-      (github.event_name == 'pull_request' &&
-       github.event.pull_request.head.repo.full_name == github.repository) ||
-      (github.event_name == 'pull_request_target' &&
-       github.event.pull_request.head.repo.full_name != github.repository &&
-       contains(github.event.pull_request.labels.*.name, 'ok-to-build')) ||
-      (github.event_name != 'pull_request' && github.event_name != 'pull_request_target')
+      github.event_name == 'pull_request_target' &&
+      needs.needs-build-check.outputs.any_image_changes == 'true'
+    runs-on: ubuntu-latest
+    environment: build-approval
+    steps:
+      - run: echo "Build authorized by maintainer"
+
+  auto-gate:
+    if: github.event_name != 'pull_request_target'
     runs-on: ubuntu-latest
     steps:
-      - run: echo "Build authorized"
+      - run: echo "Auto-authorized (push or dispatch)"
 
   # Detect which files have changed to determine which tests to run
   detect-changes:
-    needs: [fork-gate]
+    needs: [pr-gate, auto-gate]
+    if: ${{ !cancelled() && !failure() }}
     runs-on: ubuntu-latest
     outputs:
-      xpu-inference-scheduling: ${{ steps.filter.outputs.xpu-inference-scheduling }}
+      xpu-optimized-baseline: ${{ steps.filter.outputs.xpu-optimized-baseline }}
       xpu-pd-disaggregation: ${{ steps.filter.outputs.xpu-pd-disaggregation }}
       xpu-prefix-cache: ${{ steps.filter.outputs.xpu-prefix-cache }}
-      hpu-inference-scheduling: ${{ steps.filter.outputs.hpu-inference-scheduling }}
+      hpu-optimized-baseline: ${{ steps.filter.outputs.hpu-optimized-baseline }}
       hpu-pd-disaggregation: ${{ steps.filter.outputs.hpu-pd-disaggregation }}
     steps:
       - uses: actions/checkout@v6
@@ -82,23 +105,24 @@ jobs:
         id: filter
         with:
           filters: |
-            xpu-inference-scheduling:
+            xpu-optimized-baseline:
               - .github/workflows/ci-pr-test.yaml
-              - .github/workflows/e2e-inference-scheduling-xpu.yaml
+              - .github/workflows/e2e-optimized-baseline-xpu.yaml
               - .github/scripts/e2e/**
               - docker/common-versions
               - guides/**/values_xpu.yaml
-              - guides/inference-scheduling/ms-inference-scheduling/values_xpu.yaml
-              - guides/inference-scheduling/helmfile.yaml.gotmpl
+              - guides/optimized-baseline/ms-optimized-baseline/values_xpu.yaml
+              - guides/optimized-baseline/helmfile.yaml.gotmpl
             xpu-pd-disaggregation:
               - .github/workflows/ci-pr-test.yaml
               - .github/workflows/e2e-pd-xpu.yaml
               - .github/scripts/e2e/**
               - docker/common-versions
-              - guides/**/values_xpu.yaml
-              - guides/pd-disaggregation/ms-pd/values_xpu.yaml
               - guides/pd-disaggregation/README.xpu.md
-              - guides/pd-disaggregation/helmfile.yaml.gotmpl
+              - guides/pd-disaggregation/manifests/inferencepool.values.yaml
+              - guides/pd-disaggregation/manifests/modelserver/xpu/**
+              - guides/recipes/gateway/base/**
+              - guides/recipes/gateway/istio/**
             xpu-prefix-cache:
               - .github/workflows/ci-pr-test.yaml
               - .github/workflows/e2e-prefix-cache-xpu.yaml
@@ -107,14 +131,14 @@ jobs:
               - guides/**/values_xpu.yaml
               - guides/precise-prefix-cache-aware/**/values_xpu.yaml
               - guides/precise-prefix-cache-aware/helmfile.yaml.gotmpl
-            hpu-inference-scheduling:
+            hpu-optimized-baseline:
               - .github/workflows/ci-pr-test.yaml
-              - .github/workflows/e2e-inference-scheduling-hpu.yaml
+              - .github/workflows/e2e-optimized-baseline-hpu.yaml
               - .github/scripts/e2e/**
               - docker/Dockerfile.hpu
               - guides/**/values-hpu.yaml
-              - guides/inference-scheduling/ms-inference-scheduling/values-hpu.yaml
-              - guides/inference-scheduling/helmfile.yaml.gotmpl
+              - guides/optimized-baseline/ms-optimized-baseline/values-hpu.yaml
+              - guides/optimized-baseline/helmfile.yaml.gotmpl
             hpu-pd-disaggregation:
               - .github/workflows/ci-pr-test.yaml
               - .github/workflows/e2e-pd-hpu.yaml
@@ -126,26 +150,26 @@ jobs:
               - guides/pd-disaggregation/helmfile.yaml.gotmpl
 
   # Call the build-image workflow to build any changed images
-  # For upstream PRs (pull_request), this resolves build-image.yml from the PR branch.
-  # For fork PRs (pull_request_target), this resolves build-image.yml from main.
+  # Resolves build-image.yml from main (pull_request_target), checks out PR code via ref.
   build-images:
-    needs: [fork-gate]
+    needs: [needs-build-check, pr-gate, auto-gate]
+    if: ${{ !cancelled() && !failure() }}
     uses: ./.github/workflows/build-image.yml
     with:
       ref: ${{ github.event.pull_request.head.sha || '' }}
     secrets: inherit
 
-  # Call the XPU Inference Scheduling test workflow
-  test-xpu-inference-scheduling:
+  # Call the XPU optimized baseline test workflow
+  test-xpu-optimized-baseline:
     needs: [detect-changes, build-images]
     # Run tests if:
     # 1. It's a manual workflow_dispatch, OR
     # 2. Related files changed AND (build succeeded OR build was skipped)
     if: >-
       ${{ (github.event_name == 'workflow_dispatch' ||
-      needs.detect-changes.outputs.xpu-inference-scheduling == 'true') &&
+      needs.detect-changes.outputs.xpu-optimized-baseline == 'true') &&
       (needs.build-images.result == 'success' || needs.build-images.result == 'skipped') }}
-    uses: ./.github/workflows/e2e-inference-scheduling-xpu.yaml
+    uses: ./.github/workflows/e2e-optimized-baseline-xpu.yaml
     with:
       pr_or_branch: ${{ github.event.inputs.pr_or_branch || github.event.pull_request.number }}
       # Only use custom image tag if user provides it, or if XPU image was actually built in this PR
@@ -204,17 +228,17 @@ jobs:
         format('pr-{0}', github.event.pull_request.number) || '') }}
     secrets: inherit
 
-  # Call the HPU Inference Scheduling test workflow
-  test-hpu-inference-scheduling:
+  # Call the HPU optimized baseline test workflow
+  test-hpu-optimized-baseline:
     needs: [detect-changes, build-images]
     # Run tests if:
     # 1. It's a manual workflow_dispatch, OR
     # 2. Related files changed AND (build succeeded OR build was skipped)
     if: >-
       ${{ (github.event_name == 'workflow_dispatch' ||
-      needs.detect-changes.outputs.hpu-inference-scheduling == 'true') &&
+      needs.detect-changes.outputs.hpu-optimized-baseline == 'true') &&
       (needs.build-images.result == 'success' || needs.build-images.result == 'skipped') }}
-    uses: ./.github/workflows/e2e-inference-scheduling-hpu.yaml
+    uses: ./.github/workflows/e2e-optimized-baseline-hpu.yaml
     with:
       pr_or_branch: ${{ github.event.inputs.pr_or_branch || github.event.pull_request.number }}
       # Only use custom image tag if user provides it, or if HPU image was actually built in this PR
