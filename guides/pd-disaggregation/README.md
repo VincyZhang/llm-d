@@ -43,6 +43,7 @@ This guide includes configuration for the following accelerators:
 | Google TPU          | `modelserver/tpu/vllm/`    | GKE TPU, validated each release                          |
 | AMD GPU             | `modelserver/amd/vllm/`    | AMD GPU, community contributed                           |
 | Intel XPU           | `modelserver/xpu/vllm/`    | Intel Data Center GPU Max 1550+, community contributed   |
+| Intel XPU + RDMA    | `modelserver/xpu/vllm-rdma/` | Intel XPU with RDMA via UCX (`ib,rc,ze_copy`), requires RDMA DRA driver |
 | Intel Gaudi (HPU)   | `modelserver/hpu/vllm/`    | Gaudi 1/2/3 with DRA support, community contributed      |
 
 > [!NOTE]

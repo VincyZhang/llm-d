@@ -65,6 +65,16 @@ Intel Data Center GPU Max 1550 and Intel BMG GPUs (Battlemage G21) are supported
 
 For cluster prerequisites, ensure you have the [Intel Resource Drivers for Kubernetes](https://github.com/intel/intel-resource-drivers-for-kubernetes) installed.
 
+### XPU with RDMA
+
+For P/D disaggregation with RDMA-accelerated KV-cache transfer on Intel XPU, the following additional prerequisites apply:
+
+- An RDMA DRA driver exposing the `rdma-dranet` device class (e.g., [rdma-dranet](https://github.com/k8snetworkplumbingwg/rdma-dra-driver)).
+- GPU-NIC PCIe alignment for optimal transfer performance.
+- UCX transport configured with `ib,rc,ze_copy`.
+
+The RDMA overlay (`modelserver/xpu/vllm-rdma/`) reuses the standard XPU vLLM base and adds one RDMA DRA claim per pod plus RDMA-specific UCX transport settings. See the [P/D Disaggregation guide](../../guides/pd-disaggregation/README.md) for deployment instructions.
+
 ## Intel Gaudi (HPU)
 
 Intel Gaudi 1, Gaudi 2, and Gaudi 3 accelerators are supported via DRA. Ensure you have the [Intel Resource Drivers for Kubernetes](https://github.com/intel/intel-resource-drivers-for-kubernetes) installed on your cluster before deploying HPU guide variants.
