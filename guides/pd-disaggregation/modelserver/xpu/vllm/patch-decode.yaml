@@ -20,19 +20,26 @@ spec:
             - "--block-size=64"
             - "--kv-transfer-config"
             - '{"kv_connector":"NixlConnector", "kv_role":"kv_both", "kv_buffer_device":"cpu"}'
-            - "--max-model-len=32000"
+            - "--max-model-len=8192"
+            - "--gpu-memory-utilization=0.7"
             - "--port=8200"
           env:
             - name: UCX_TLS
               value: "tcp"
+            - name: HF_ENDPOINT
+              value: "https://hf-mirror.com"
+            - name: no_proxy
+              value: "intel.com,.intel.com,localhost,127.0.0.1"
+            - name: http_proxy
+              value: "http://proxy-shz.intel.com:912"
+            - name: https_proxy
+              value: "http://proxy-shz.intel.com:912"
             - name: VLLM_NIXL_SIDE_CHANNEL_HOST
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
             - name: VLLM_NIXL_SIDE_CHANNEL_PORT
               value: "5600"
-            - name: VLLM_USE_V1
-              value: "1"
             - name: TORCH_LLM_ALLREDUCE
               value: "1"
             - name: VLLM_WORKER_MULTIPROC_METHOD
@@ -42,12 +49,13 @@ spec:
                 secretKeyRef:
                   name: llm-d-hf-token
                   key: HF_TOKEN
+                  optional: true
           resources:
             limits:
-              cpu: "16"
+              cpu: "8"
               memory: 64Gi
             requests:
-              cpu: "16"
+              cpu: "8"
               memory: 64Gi
             claims:
               - name: xpu-decode-claim
@@ -71,7 +79,7 @@ spec:
             failureThreshold: 6
       resourceClaims:
         - name: xpu-decode-claim
-          resourceClaimTemplateName: xpu-decode-claim
+          resourceClaimTemplateName: pd-disaggregation-xpu-vllm-xpu-decode-claim
       volumes:
         - name: shm
           emptyDir:
