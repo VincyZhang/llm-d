@@ -1,0 +1,112 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: decode
+spec:
+  replicas: 1
+  template:
+    spec:
+      hostNetwork: true
+      hostIPC: true
+      dnsPolicy: ClusterFirstWithHostNet
+      securityContext:
+        fsGroup: 107
+        supplementalGroups:
+          - 107
+          - 44
+          - 991
+      tolerations:
+        - key: node.kubernetes.io/disk-pressure
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: modelserver
+          securityContext:
+            privileged: true
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              exec vllm serve \
+                Qwen/Qwen3-8B \
+                --dtype bfloat16 \
+                --block-size 64 \
+                --tensor-parallel-size=1 \
+                --gpu-memory-utilization 0.35 \
+                --max-num-seq 128 \
+                --uvicorn-log-level warning
+          env:
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: llm-d-hf-token
+                  key: HF_TOKEN
+            - name: USER
+              value: llm-d
+            - name: VLLM_TARGET_DEVICE
+              value: xpu
+            - name: VLLM_USE_V1
+              value: "1"
+            - name: TORCH_LLM_ALLREDUCE
+              value: "1"
+            - name: VLLM_WORKER_MULTIPROC_METHOD
+              value: "spawn"
+            - name: VLLM_LOGGING_LEVEL
+              value: "DEBUG"
+          resources:
+            limits:
+              cpu: '8'
+              memory: 30Gi
+              gpu.intel.com/xe: 1
+            requests:
+              cpu: '8'
+              memory: 30Gi
+              gpu.intel.com/xe: 1
+          volumeMounts:
+            - mountPath: /dev/shm
+              name: shm
+            - mountPath: /.cache
+              name: torch-compile-cache
+            - mountPath: /.triton
+              name: triton-cache
+            - mountPath: /.config
+              name: vllm-config
+            - mountPath: /dev/dri
+              name: driver
+            - mountPath: /dev/dri/by-path
+              name: driver-by-path
+          startupProbe:
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 120
+          livenessProbe:
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+      restartPolicy: Always
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 130
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 4Gi
+        - name: torch-compile-cache
+          emptyDir: {}
+        - name: triton-cache
+          emptyDir: {}
+        - name: vllm-config
+          emptyDir: {}
+        - name: driver
+          hostPath:
+            path: /dev/dri
+        - name: driver-by-path
+          hostPath:
+            path: /dev/dri/by-path

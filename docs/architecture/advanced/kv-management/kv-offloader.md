@@ -145,7 +145,7 @@ Out-of-tree engines coexist with the native path through a common integration co
 > [!NOTE]
 > llm-d's deployment guides formally cover LMCache today. The integration pattern is the same for Mooncake, KVBM, and other connector-compatible engines — they work out-of-the-box on the serving-stack side — but first-class llm-d recipes for each are not yet in the repo.
 
-For existing deployment recipes, see the [Tiered Prefix Cache Guide](https://github.com/llm-d/llm-d/tree/main/guides/tiered-prefix-cache).
+For existing deployment recipes, see the [Tiered Prefix Cache Guide](../../../../guides/tiered-prefix-cache).
 
 ## Configuration
 
@@ -217,6 +217,7 @@ The FS backend populates vLLM's built-in offloading metrics (`vllm:kv_offload_*`
 **Storage offloading:** Best when cache working set exceeds single-node capacity, when cross-node sharing is valuable (repeated system prompts across replicas, agentic workflows), or when persistence across restarts matters. Storage offloading is most effective when the storage network is fast enough to allow low-latency loads and stores.
 
 **Storage selection:** The FS backend works with any POSIX-compliant filesystem and is not tied to a specific vendor. Your choice trades off:
+
 - **Sharing scope** — local media (e.g., NVMe SSDs) are per-node only; networked or distributed filesystems (e.g., NFS, CephFS, Lustre, IBM Storage Scale, Weka, cloud file services) enable cross-node reuse.
 - **Throughput and latency** — depend on the underlying hardware, network, and filesystem configuration rather than the KV-cache layer; parallel and distributed filesystems generally scale best for large deployments.
 
@@ -226,7 +227,7 @@ Any POSIX filesystem is a candidate; the best choice for a given deployment depe
 
 ## Further Reading
 
-- [Tiered Prefix Cache Guide](https://github.com/llm-d/llm-d/tree/main/guides/tiered-prefix-cache) — Step-by-step deployment guides
+- [Tiered Prefix Cache Guide](../../../../guides/tiered-prefix-cache) — Step-by-step deployment guides
 - [llm-d KV-Disaggregation Roadmaps](https://github.com/llm-d/llm-d-kv-cache/issues?q=is%3Aissue%20state%3Aopen%20label%3Aroadmap) — Planned features and improvements across offloading and KV-cache management
 - [llm-d FS Backend](https://github.com/llm-d/llm-d-kv-cache/tree/main/kv_connectors/llmd_fs_backend) — Implementation details, configuration, and metrics
 - [vLLM KV Offloading Connector](https://vllm.ai/blog/kv-offloading-connector) — Deep dive into vLLM's native offloading

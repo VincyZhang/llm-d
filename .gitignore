@@ -2,6 +2,8 @@
 *.history
 .DS_Store
 CLAUDE.md
+.release-team
+.generated-* # generated files, e.g., from codegen tools
 
 # editor and IDE paraphernalia
 .idea
@@ -12,3 +14,6 @@ CLAUDE.md
 
 # helm chart directories via kustomize
 **/charts/
+
+# AI
+.claude

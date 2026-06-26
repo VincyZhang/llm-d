@@ -27,7 +27,7 @@ set -Eeux
 cd /tmp
 
 if [ "${BUILD_DEBUG}" = "true" ]; then
-    # Disable sccache for nvshmem build in debug mode for nvcc + sccache + cmake weirdness. 
+    # Disable sccache for nvshmem build in debug mode for nvcc + sccache + cmake weirdness.
     # Not an issue for regular builds, only for BUILD_DEBUG=true
     export USE_SCCACHE="false"
 fi
@@ -134,15 +134,6 @@ cmake -S . -B build -G Ninja \
     "${DEBUG_FLAGS[@]}" \
     "${CMAKE_EXTRA_FLAGS[@]}" \
     "${EFA_FLAGS[@]}"
-
-# Calculate max jobs based on available cores
-MAX_JOBS=$(nproc)
-if [ "${BUILD_DEBUG}" = "true" ]; then
-    # Leave one core free for system tasks to prevent CI runner timeout
-    MAX_JOBS=$((MAX_JOBS - 1))
-    # Ensure at least 1 job
-    [ "${MAX_JOBS}" -lt 1 ] && MAX_JOBS=1
-fi
 
 ninja -C build -j"${MAX_JOBS}"
 cmake --install build

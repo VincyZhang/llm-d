@@ -6,32 +6,39 @@ For this quickstart, we will use the **Standalone Mode** deployment, which is th
 
 ## Prerequisites
 
-- Ensure you have a Kubernetes cluster and `kubectl` configured.
-- Install [Helm](https://helm.sh/docs/intro/install/).
-- Install [jq](https://jqlang.org/download/).
+- Installed proper client tools (kubectl, helm).
+- Set the following environment variables:
+  ```bash
+  export REPO_ROOT=$(realpath $(git rev-parse --show-toplevel))
+  source ${REPO_ROOT}/guides/env.sh
+  export GUIDE_NAME="quickstart"
+  export NAMESPACE=llm-d-quickstart
+  ```
 
-### 1. Setup Environment
+- Install the Gateway API Inference Extension CRDs:
 
-Clone the llm-d repository and set up the necessary environment variables:
+  ```bash
+  kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extension/releases/download/${GAIE_VERSION}/v1-manifests.yaml
+  ```
 
-```bash
-git clone https://github.com/llm-d/llm-d.git && cd llm-d
+- Create a target namespace for the installation:
 
-export GAIE_VERSION=v1.5.0
-export GUIDE_NAME="quickstart"
-export NAMESPACE=llm-d-quickstart
-```
+  ```bash
+  kubectl create namespace ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
+  ```
 
-### 2. Install CRDs and Namespace
+- [Create the `llm-d-hf-token` secret in your target namespace with the key `HF_TOKEN` matching a valid HuggingFace token](../../helpers/hf-token.md) to pull models.
+<!-- llm-d-cicd:skip start -->
+  ```bash
+  export HF_TOKEN=<your HuggingFace token>
+  kubectl create secret generic llm-d-hf-token \
+    --from-literal="HF_TOKEN=${HF_TOKEN}" \
+    --namespace "${NAMESPACE}" \
+    --dry-run=client -o yaml | kubectl apply -f -
+  ```
+<!-- llm-d-cicd:skip end -->
 
-Install the Gateway API Inference Extension CRDs and create the namespace:
-
-```bash
-kubectl apply -k "https://github.com/kubernetes-sigs/gateway-api-inference-extension/config/crd?ref=${GAIE_VERSION}"
-kubectl create namespace ${NAMESPACE}
-```
-
-## Installation
+## Installation Instructions
 
 ### 1. Deploy the llm-d Router (Standalone Mode)
 
@@ -39,10 +46,10 @@ The llm-d Router provides the intelligent load balancing. In Standalone Mode, it
 
 ```bash
 helm install ${GUIDE_NAME} \
-    oci://registry.k8s.io/gateway-api-inference-extension/charts/standalone \
-    -f guides/recipes/scheduler/base.values.yaml \
-    -f guides/optimized-baseline/scheduler/optimized-baseline.values.yaml \
-    -n ${NAMESPACE} --version ${GAIE_VERSION}
+    oci://ghcr.io/llm-d/charts/llm-d-router-standalone-dev \
+    -f guides/recipes/router/base.values.yaml \
+    -f guides/optimized-baseline/router/optimized-baseline.values.yaml \
+    -n ${NAMESPACE} --version ${ROUTER_CHART_VERSION}
 ```
 
 ### 2. Deploy the Model Server
@@ -71,8 +78,9 @@ export IP=$(kubectl get service ${GUIDE_NAME}-epp -n ${NAMESPACE} -o jsonpath='{
 Open a temporary interactive shell inside the cluster to send a request:
 
 ```bash
-kubectl run curl-debug --rm -it -n ${NAMESPACE} \
+kubectl run curl-debug --rm -it \
     --image=cfmanteiga/alpine-bash-curl-jq \
+    --namespace="$NAMESPACE" \
     --env="IP=$IP" \
     -- /bin/bash
 ```

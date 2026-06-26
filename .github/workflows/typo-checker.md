@@ -44,6 +44,7 @@ gh pr diff ${{ github.event.pull_request.number }} --name-only
 ```
 
 Filter to relevant file types (skip binary files, lock files, generated files):
+
 - Include: `*.md`, `*.yml`, `*.yaml`, `*.go`, `*.py`, `*.sh`, `*.txt`, `*.json`, `*.toml`
 - Exclude: `*.lock.yml`, `*.lock`, `*_generated*`, `vendor/`, `node_modules/`, `*.pb.go`
 
@@ -72,6 +73,7 @@ Review each added line for spelling and grammar issues. Consider:
 The following are NOT typos — do not flag them:
 
 **llm-d Domain Terms** (correct as-is):
+
 - vLLM, vllm (both valid)
 - NIXL, nixl
 - RDMA, InfiniBand, RoCE
@@ -88,7 +90,7 @@ The following are NOT typos — do not flag them:
 - autoscaler, autoscaling
 - CRD, CRDs, CustomResourceDefinition
 - OCI, GHCR, ghcr
-- Gaudi, HPU, XPU, TPU, ROCm
+- XPU, TPU, ROCm
 - InfiniStore, infinistore
 - pplx, perplexity
 - kubectl, kubeconfig, kubecontext

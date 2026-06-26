@@ -1,11 +1,11 @@
-# EPP Configuration
+# Configuration
 
 The `EndpointPickerConfig` is the central configuration for the Endpoint Picker (EPP), defining the graph of plugins and parameters that drive request handling, flow control, and scheduling decisions.
 
 The configuration text has the following form:
 
 ```yaml
-apiVersion: inference.networking.x-k8s.io/v1alpha1
+apiVersion: llm-d.ai/v1alpha1
 kind: EndpointPickerConfig
 plugins:
 - ....
@@ -50,6 +50,7 @@ This design allows you to define a plugin once and reuse it across multiple prof
 > **Auto-Wiring**: Some subsystems support automatic binding. If a plugin is declared in the top-level `plugins` list and implements a specific Go interface (like `Admitter`, `DataProducer`, or advanced hooks like `PreRequest`, `ResponseHeaderProcessor`, and `ResponseBodyProcessor`), the system will automatically discover and bind it to its role without requiring an explicit edge in the structural configuration.
 
 To ensure the integrity of this graph, the following **validation rules** apply across all layers:
+
 - **Valid References**: Any field that references a plugin (e.g., `pluginRef` in `schedulingProfiles` or `saturationDetector`) must reference a valid name defined in the top-level `plugins` section.
 - **Unique Names**: All instances within lists that require naming (like `schedulingProfiles`) must have unique, non-empty names.
 - **Data Dependencies**: The system validates that metrics extractors form a Directed Acyclic Graph (DAG) without circular dependencies, ensuring correct execution order.
@@ -72,7 +73,7 @@ spec:
       ...
       containers:
       - name: epp
-        image: ghcr.io/llm-d/llm-d-inference-scheduler:latest
+        image: ghcr.io/llm-d/llm-d-router-endpoint-picker:v0.9.0
         imagePullPolicy: IfNotPresent
         args:
         - --pool-name
@@ -98,7 +99,7 @@ spec:
       ...
       containers:
       - name: epp
-        image: ghcr.io/llm-d/llm-d-inference-scheduler:latest
+        image: ghcr.io/llm-d/llm-d-router-endpoint-picker:v0.9.0
         imagePullPolicy: IfNotPresent
         args:
         - --pool-name
@@ -106,7 +107,7 @@ spec:
         ...
         - --config-text
         - |
-          apiVersion: inference.networking.x-k8s.io/v1alpha1
+          apiVersion: llm-d.ai/v1alpha1
           kind: EndpointPickerConfig
           plugins:
           - type: prefix-cache-scorer
@@ -157,6 +158,13 @@ featureGates:
 
 - `flowControl`: Enables the Admission and Flow Control layer. This must be enabled to use the `flowControl` configuration section.
 
+#### Removing a Feature Gate
+
+To ensure backward compatibility, a feature gate should usually be removed over two releases:
+
+1. **First Release:** Mark the feature as stable and enable it by default, but keep the feature gate in the configuration as a deprecated, still-functional gate so existing configurations remain valid and operators retain a temporary rollback mechanism by disabling the feature if needed. During this phase, inform users (e.g., via release notes) that the feature gate is deprecated and will be removed in the next release.
+2. **Second Release:** Completely remove the feature gate from the configuration and code.
+
 ### Request Handling
 
 This section covers components that process requests and responses before they reach the scheduling phase, or after a backend has been selected.
@@ -181,15 +189,16 @@ If unspecified, `openai-parser` is used by default.
 #### Admitters & Data Producers
 
 Admitters and Data Producers are specialized plugins that execute during the initial request processing phase:
-*   **Admitters** perform early checks to accept or reject requests before they enter the queue.
-*   **Data Producers** gather per request contextual information (like predicted latency or prefix cache status) required by downstream components.
+
+- **Admitters** perform early checks to accept or reject requests before they enter the queue.
+- **Data Producers** gather per request contextual information (like predicted latency or prefix cache status) required by downstream components.
 
 As introduced in the [Mental Model](#configuration-mental-model-plugins-and-wiring), these plugins support automatic interface-based binding. This reduces boilerplate configuration that would otherwise be needed to wire them explicitly.
 
 If an admitter or data producer plugin is declared in the top-level `plugins` list, the system automatically recognizes it by its capabilities at startup and binds it to the appropriate lifecycle hook:
 
-*   **Admitters**: Automatically bound if they implement the Go interface for admitting or rejecting requests early.
-*   **Data Producers**: Automatically bound if they implement the Go interface for gathering per-request data (like latency predictions) needed by other components.
+- **Admitters**: Automatically bound if they implement the Go interface for admitting or rejecting requests early.
+- **Data Producers**: Automatically bound if they implement the Go interface for gathering per-request data (like latency predictions) needed by other components.
 
 To enable these plugins, simply list them in the `plugins` section:
 
@@ -206,8 +215,6 @@ plugins:
 
 They are automatically active and do not need to be referenced elsewhere in the configuration.
 
-
-
 ---
 
 ### Flow Control
@@ -216,12 +223,12 @@ See [Flow Control](flow-control.md) for more architectural details on how the EP
 
 The `flowControl` section configures the EPP's Flow Control layer, which acts as a pool defense mechanism by buffering requests before they reach backend model servers. Flow Control implements a 3-tier dispatch hierarchy: **Priority → Fairness → Ordering**. For a visual breakdown of how this looks in practice, see the [Queuing Topology diagram in the Flow Control reference](flow-control.md#queuing-topology--the-3-tier-dispatch).
 
-When flow control is enabled (via the `FlowControl` feature gate), incoming requests are queued in memory and dispatched according to configured priority bands, fairness policies, and ordering policies. When the pool is saturated (as determined by the [saturation detector](#saturationdetector)), requests are held in the queue until capacity frees up.
+When flow control is enabled (via the `FlowControl` feature gate), incoming requests are queued in memory and dispatched according to configured priority bands, fairness policies, and ordering policies. When the pool is saturated (as determined by the [saturation detector](#saturation-detector)), requests are held in the queue until capacity frees up.
 
 The following example demonstrates a complete `EndpointPickerConfig` with flow control enabled, showing how to configure the `featureGates`, `plugins`, `saturationDetector`, and `flowControl` sections to work together.
 
 ```yaml
-apiVersion: inference.networking.x-k8s.io/v1alpha1
+apiVersion: llm-d.ai/v1alpha1
 kind: EndpointPickerConfig
 
 featureGates:
@@ -261,7 +268,7 @@ flowControl:
 # ... other sections (schedulingProfiles, dataLayer, etc.) ...
 ```
 
-##### Global Fields
+#### Global Fields
 
 - `maxBytes`: Global capacity limit across all priority levels. Supports Kubernetes resource quantity format (e.g., `10Gi`, `512Mi`) or plain integers (bytes). If `0` or omitted, no global limit is enforced (unlimited).
 - `maxRequests`: Optional global maximum request count limit. If `0` or omitted, no global limit is enforced (unlimited).
@@ -269,7 +276,7 @@ flowControl:
 - `defaultPriorityBand`: A template used to dynamically provision priority bands that are not explicitly configured in `priorityBands`.
 - `priorityBands`: A list of explicit configurations for specific priority levels.
 
-##### Priority Band Fields
+#### Priority Band Fields
 
 These fields apply to both `defaultPriorityBand` and entries in `priorityBands`:
 
@@ -281,7 +288,7 @@ These fields apply to both `defaultPriorityBand` and entries in `priorityBands`:
 
 For a full list of available Fairness and Ordering policies, see the [Flow Control reference](flow-control.md#concrete-plugins).
 
-##### Saturation Detector
+#### Saturation Detector
 
 > [!NOTE]
 > While `saturationDetector` is presented here conceptually as part of Flow Control, it is a **top-level field** in the YAML schema, at the same level as `flowControl`.
@@ -295,7 +302,7 @@ saturationDetector:
   pluginRef: utilization-detector # Default
 ```
 
-###### Fields
+##### Fields
 
 - `pluginRef`: References a plugin instance defined in the global `plugins` section. Defaults to `utilization-detector` if omitted or empty. *Note: If a `utilization-detector` is not explicitly defined in your `plugins` array, the gateway will automatically instantiate one under the hood using standard default parameters.*
 
@@ -316,7 +323,7 @@ schedulingProfiles:
 - name: default
   plugins:
   - pluginRef: label-selector-filter # Optional: not in default profile
-  - pluginRef: precise-prefix-cache-scorer # Recommended: not in default profile
+  - pluginRef: prefix-cache-scorer # Recommended: not in default profile
     weight: 3.0
   - pluginRef: kv-cache-utilization-scorer # Recommended: not in default profile
     weight: 2.0
@@ -325,12 +332,15 @@ schedulingProfiles:
   - pluginRef: max-score-picker # Default picker (auto-injected if omitted)
 ```
 
-##### Scheduling Profile Fields
+> [!NOTE]
+> To use **precise** prefix-cache routing (exact, KV-event-driven) instead of the approximate default, declare a `precise-prefix-cache-producer` in the top-level `plugins` section and set `prefixMatchInfoProducerName: precise-prefix-cache-producer` on the `prefix-cache-scorer`; otherwise the scorer falls back to the approximate producer. See the [Precise Prefix Cache Routing guide](../../../../../guides/precise-prefix-cache-routing/README.md).
+
+#### Scheduling Profile Fields
 
 - `name`: The unique name of the scheduling profile.
 - `plugins`: A list of plugins that make up the scheduling pipeline for this profile.
 
-##### Profile Plugin Fields
+#### Profile Plugin Fields
 
 - `pluginRef`: References a plugin by its name (or type if name was omitted) defined in the top-level `plugins` section.
 - `weight`: Optional float weight applied if the referenced plugin is a Scorer. If omitted for a scorer, it defaults to `1.0`.
@@ -345,11 +355,11 @@ The system applies a multi-tiered defaulting logic for scheduling profiles:
 
 - **Tier 1: Omitted `schedulingProfiles`**: If the `schedulingProfiles` section is entirely omitted, a profile named `default` is automatically created. This profile will reference **all Filter, Scorer, and Picker plugins** defined in the top-level `plugins` section.
 - **Tier 2: Empty `plugins` in a profile**: If you define a profile but leave the `plugins` list empty, it is valid but only gets the auto-injected picker (see Tier 3).
-- **Tier 3: Missing Picker in a profile**: If a profile does not reference a picker plugin, the system automatically injects `max-score-picker`.
+- **Tier 3: Missing Picker in a profile**: If a profile does not reference a picker plugin, the system automatically injects `max-score-picker` with its default `maxNumOfEndpoints: 1`. To use a different value or picker, declare it explicitly and reference it in the profile.
 
 </details>
 
-##### Profile Execution Rules
+#### Profile Execution Rules
 
 While the YAML configuration presents a flat list of plugins within a profile, the framework processes them with specific rules:
 
@@ -358,7 +368,7 @@ While the YAML configuration presents a flat list of plugins within a profile, t
 - **Multiple Pickers**: A scheduling profile **cannot** have more than one picker. Referencing more than one picker in a profile's `plugins` list will cause a runtime error during profile initialization.
 - **Scorer Weights**: If the `weight` field is omitted for a scorer, it defaults to `1.0`. Scores from multiple scorers are accumulated after multiplying by their respective weights.
 
-##### Profile Handlers and Use Cases
+#### Profile Handlers and Use Cases
 
 - **Multiple Profiles**: While a single profile is sufficient for simple serving, advanced use cases like **disaggregated prefill** require two or more profiles to handle different types of requests differently.
 - **Profile Handler**: When multiple profiles are defined, you must instantiate and configure a **Profile Handler** plugin in the top-level `plugins` section. The Profile Handler determines which `SchedulingProfile` to use for each incoming request.
@@ -372,7 +382,7 @@ plugins:
 # Also add the approx-prefix-cache-producer (data producer) when passing parameters to the prefix cache scorer.
 - type: approx-prefix-cache-producer
   parameters:
-    blockSizeTokens: 64 # Default
+    blockSizeTokens: 64
     maxPrefixBlocksToMatch: 256 # Default
     lruCapacityPerServer: 31250 # Default
 
@@ -382,7 +392,7 @@ schedulingProfiles:
 - name: default
   plugins:
   - pluginRef: prefix-cache-scorer
-    weight: 3.0 # Default
+    weight: 3.0
 ```
 
 <details>
@@ -402,20 +412,16 @@ plugins:
   type: another-filter
 - name: scorer-1
   type: some-scorer
-- name: max-score-picker
-  type: max-score-picker
 
 schedulingProfiles:
 - name: profile-a
   plugins:
   - pluginRef: filter-a
   - pluginRef: scorer-1
-  - pluginRef: max-score-picker
 - name: profile-b
   plugins:
   - pluginRef: filter-b
   - pluginRef: scorer-1
-  - pluginRef: max-score-picker
 ```
 
 **Important:** Only one profile handler plugin is allowed in the configuration. If multiple profiles are defined, you must provide a handler that supports them (the default `single-profile-handler` does not support multiple profiles).
@@ -436,7 +442,7 @@ dataLayer:
     - pluginRef: core-metrics-extractor # References a plugin in the 'plugins' section
 ```
 
-##### Fields
+#### Fields
 
 - `sources`: A list of data sources to be polled or monitored.
   - `pluginRef`: References a plugin instance defined in the global `plugins` section that implements the `DataSource` interface.
@@ -444,7 +450,7 @@ dataLayer:
     - `pluginRef`: References a plugin instance defined in the global `plugins` section that implements the `Extractor` interface.
 
 > [!NOTE]
-> If the `dataLayer` section is omitted, the system automatically instantiates default plugins (the `metrics-data-source` and `core-metrics-extractor`) to enable standard metrics collection and extraction for scheduling decisions.
+> The `metrics-data-source` and `core-metrics-extractor` are injected **by default**, so standard metrics collection works without configuring `dataLayer` at all. Injection is additive — even when you supply your own `dataLayer`, the default metrics source is appended with your sources. Unless you set `injectDefaults: false` or  `dataLayer.sources` already contains a `metrics-data-source` source
 
 ## High Availability
 
@@ -462,11 +468,9 @@ The EPP exposes a Prometheus-compatible metrics endpoint on **port 9090** at `/m
 
 Metrics are organized by the subsystem that owns the logic. For detailed tables of metrics available in each subsystem, see:
 
-*   **[Request Handling Metrics](request-handling.md#metrics--observability)**: Request volume, latency, token usage, and success rates.
-*   **[Flow Control Metrics](flow-control.md#metrics--observability)**: Queue sizes, dispatch cycles, and pool saturation.
-*   **[Routing Metrics](scheduling.md#metrics--observability)**: Router performance and pool health state.
-
-
+- **[Request Handling Metrics](request-handling.md#metrics--observability)**: Request volume, latency, token usage, and success rates.
+- **[Flow Control Metrics](flow-control.md#metrics--observability)**: Queue sizes, dispatch cycles, and pool saturation.
+- **[Routing Metrics](scheduling.md#metrics--observability)**: Router performance and pool health state.
 
 ### Monitoring Stack
 
