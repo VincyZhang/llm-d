@@ -21,6 +21,12 @@ spec:
                 --max-num-seq 128 \
                 --uvicorn-log-level warning
           env:
+            - name: no_proxy
+              value: intel.com,.intel.com,localhost,127.0.0.1
+            - name: http_proxy
+              value: http://proxy-shz.intel.com:912
+            - name: https_proxy
+              value: http://proxy-shz.intel.com:912
             - name: HF_TOKEN
               valueFrom:
                 secretKeyRef:
