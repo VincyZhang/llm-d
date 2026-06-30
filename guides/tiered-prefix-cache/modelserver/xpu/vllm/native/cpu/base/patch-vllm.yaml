@@ -10,6 +10,7 @@ spec:
           command: ["/bin/bash", "-c"]
           args:
             - |
+              source /opt/intel/oneapi/setvars.sh --force >/dev/null 2>&1 || source /opt/intel/oneapi/setvars.sh >/dev/null 2>&1 || true
               exec vllm serve \
                 Qwen/Qwen3-8B \
                 --dtype bfloat16 \
