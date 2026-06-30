@@ -74,8 +74,8 @@ git clone https://github.com/llm-d/llm-d.git && cd llm-d && git checkout ${branc
 * Set the following environment variables:
 
 ```bash
-export REPO_ROOT=$(realpath $(git rev-parse --show-toplevel))
-source ${REPO_ROOT}/guides/env.sh
+export GAIE_VERSION=v1.5.0
+export ROUTER_CHART_VERSION=v0.9.0
 export GUIDE_NAME="pd-disaggregation"
 export NAMESPACE="llm-d-pd-disaggregation"
 export MODEL_NAME="openai/gpt-oss-120b"

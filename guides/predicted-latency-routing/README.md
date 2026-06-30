@@ -36,8 +36,8 @@ Skip it when your pool is **heterogeneous** — mixed GPU types, model variants,
 - Set the following environment variables:
 
   ```bash
-    export REPO_ROOT=$(realpath $(git rev-parse --show-toplevel))
-    source ${REPO_ROOT}/guides/env.sh
+    export GAIE_VERSION=v1.5.0
+    export ROUTER_CHART_VERSION=v0.9.0
     export GUIDE_NAME="predicted-latency-routing"
     export NAMESPACE=llm-d-predicted-latency
     export MODEL_NAME="Qwen/Qwen3-32B"

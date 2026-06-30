@@ -13,12 +13,6 @@ spec:
         fsGroup: 107
         supplementalGroups:
           - 107
-          - 44
-          - 991
-      tolerations:
-        - key: node.kubernetes.io/disk-pressure
-          operator: Exists
-          effect: NoSchedule
       containers:
         - name: modelserver
           securityContext:
@@ -57,12 +51,16 @@ spec:
             limits:
               cpu: '8'
               memory: 30Gi
-              gpu.intel.com/xe: 1
             requests:
               cpu: '8'
               memory: 30Gi
-              gpu.intel.com/xe: 1
+            claims:
+              - name: xpu-claim
           volumeMounts:
+            - mountPath: /dev/dri
+              name: dev-dri
+            - mountPath: /dev/dri/by-path
+              name: dev-dri-by-path
             - mountPath: /dev/shm
               name: shm
             - mountPath: /.cache
@@ -71,10 +69,6 @@ spec:
               name: triton-cache
             - mountPath: /.config
               name: vllm-config
-            - mountPath: /dev/dri
-              name: driver
-            - mountPath: /dev/dri/by-path
-              name: driver-by-path
           startupProbe:
             initialDelaySeconds: 15
             periodSeconds: 30
@@ -89,24 +83,26 @@ spec:
             timeoutSeconds: 2
             failureThreshold: 3
       restartPolicy: Always
+      resourceClaims:
+        - name: xpu-claim
+          resourceClaimTemplateName: xpu-claim
       enableServiceLinks: false
       terminationGracePeriodSeconds: 130
       volumes:
+        - name: dev-dri
+          hostPath:
+            path: /dev/dri
+        - name: dev-dri-by-path
+          hostPath:
+            path: /dev/dri/by-path
         - name: data
           emptyDir: {}
         - name: shm
           emptyDir:
             medium: Memory
-            sizeLimit: 4Gi
         - name: torch-compile-cache
           emptyDir: {}
         - name: triton-cache
           emptyDir: {}
         - name: vllm-config
           emptyDir: {}
-        - name: driver
-          hostPath:
-            path: /dev/dri
-        - name: driver-by-path
-          hostPath:
-            path: /dev/dri/by-path

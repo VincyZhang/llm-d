@@ -56,8 +56,8 @@ This guide includes configurations for the following accelerators:
 - Set the following environment variables:
 
   ```bash
-    export REPO_ROOT=$(realpath $(git rev-parse --show-toplevel))
-    source ${REPO_ROOT}/guides/env.sh
+    export GAIE_VERSION=v1.5.0
+    export ROUTER_CHART_VERSION=v0.9.0
     export GUIDE_NAME="optimized-baseline"
     export NAMESPACE=llm-d-optimized-baseline
   ```

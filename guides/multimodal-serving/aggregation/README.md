@@ -39,9 +39,10 @@ This guide includes configurations for the following accelerators and inference 
    ```
 3. Set up environment variables:
    ```bash
-   source ${REPO_ROOT}/guides/env.sh
-   export GUIDE_NAME="aggregation"
-   export NAMESPACE=llm-d-multimodal-aggregation
+   export GAIE_VERSION=v1.5.0
+   export ROUTER_CHART_VERSION=v0.9.0
+   export GUIDE_NAME="optimized-baseline"
+   export NAMESPACE=llm-d-multimodal-optimized-baseline
    ```
 4. Install the Gateway API Inference Extension CRDs:
    ```bash
