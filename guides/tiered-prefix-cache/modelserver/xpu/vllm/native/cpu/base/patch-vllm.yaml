@@ -32,3 +32,9 @@ spec:
                 secretKeyRef:
                   name: llm-d-hf-token
                   key: HF_TOKEN
+          resources:
+            claims:
+              - name: xpu-claim
+      resourceClaims:
+        - name: xpu-claim
+          resourceClaimTemplateName: xpu-claim
