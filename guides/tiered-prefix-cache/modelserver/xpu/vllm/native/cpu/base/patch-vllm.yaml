@@ -32,6 +32,10 @@ spec:
                 secretKeyRef:
                   name: llm-d-hf-token
                   key: HF_TOKEN
+            - name: VLLM_TARGET_DEVICE
+              value: xpu
+            - name: VLLM_LOGGING_LEVEL
+              value: "DEBUG"
           resources:
             claims:
               - name: xpu-claim
