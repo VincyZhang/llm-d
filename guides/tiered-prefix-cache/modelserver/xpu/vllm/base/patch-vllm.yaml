@@ -6,8 +6,6 @@ spec:
   replicas: 1
   template:
     spec:
-      hostNetwork: true
-      hostIPC: true
       dnsPolicy: ClusterFirstWithHostNet
       securityContext:
         fsGroup: 107
@@ -15,8 +13,6 @@ spec:
           - 107
       containers:
         - name: modelserver
-          securityContext:
-            privileged: true
           imagePullPolicy: IfNotPresent
           command: ["/bin/bash", "-c"]
           args:
@@ -25,9 +21,8 @@ spec:
               exec vllm serve \
                 Qwen/Qwen3-8B \
                 --dtype bfloat16 \
-                --block-size 64 \
                 --tensor-parallel-size=1 \
-                --gpu-memory-utilization 0.35 \
+                --gpu-memory-utilization 0.75 \
                 --max-num-seq 128 \
                 --uvicorn-log-level warning
           env:

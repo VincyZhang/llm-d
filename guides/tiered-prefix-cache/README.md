@@ -349,7 +349,7 @@ kubectl delete -n ${NAMESPACE} -k ${REPO_ROOT}/guides/tiered-prefix-cache/models
 
 ```bash
 kubectl delete -f ${REPO_ROOT}/guides/tiered-prefix-cache/manifests/pvc.yaml -n ${NAMESPACE} --ignore-not-found  # if a PVC was created
-kubectl delete namespace ${NAMESPACE}
+# kubectl delete namespace ${NAMESPACE}
 ```
 
 ---

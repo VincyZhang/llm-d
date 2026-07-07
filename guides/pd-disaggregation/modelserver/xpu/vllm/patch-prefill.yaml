@@ -14,7 +14,7 @@ spec:
         - name: modelserver
           command: ["vllm", "serve"]
           args:
-            - "Qwen/Qwen3-0.6B"
+            - "--model=Qwen/Qwen3-0.6B"
             - "--disable-uvicorn-access-log"
             - "--tensor-parallel-size=1"
             - "--block-size=64"
@@ -36,11 +36,14 @@ spec:
               value: "1"
             - name: VLLM_WORKER_MULTIPROC_METHOD
               value: "spawn"
-            # Default vLLM keep-alive (5s) is shorter than llm-d-routing-sidecar's default idle
-            # conn timeout (90s, from Go http.Transport), causing TCP RSTs on reuse.
-            # Server keep-alive must be >= sidecar idle timeout; configured to 120s.
-            - name: VLLM_HTTP_TIMEOUT_KEEP_ALIVE
-              value: "120"
+            - name: HF_ENDPOINT
+              value: "https://hf-mirror.com"
+            - name: no_proxy
+              value: "intel.com,.intel.com,localhost,127.0.0.1"
+            - name: http_proxy
+              value: "http://proxy-shz.intel.com:912"
+            - name: https_proxy
+              value: "http://proxy-shz.intel.com:912"
             - name: HF_TOKEN
               valueFrom:
                 secretKeyRef:

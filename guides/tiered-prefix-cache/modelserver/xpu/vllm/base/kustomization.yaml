@@ -15,8 +15,8 @@ components:
 # reference here (replace `newName`/`newTag` with your local image and tag).
 images:
   - name: ghcr.io/llm-d/llm-d-xpu
-    newName: vllm-xpu-env
-    newTag: latest
+    newName: ghcr.io/llm-d/llm-d-xpu-dev
+    newTag: pr-1731
 
 labels:
   - pairs:
