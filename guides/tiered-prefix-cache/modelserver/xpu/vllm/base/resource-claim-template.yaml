@@ -8,10 +8,6 @@ spec:
   spec:
     devices:
       requests:
-        # Single decode replica claims 4 Intel GPUs, pinned to the socket-0
-        # cards (XPU 0-3 = PCI 2b/2f/3c/40) so both the baseline and the offload
-        # variant always land on the same NUMA-local quad regardless of
-        # scheduling order.
         - name: gpu
           exactly:
             deviceClassName: gpu.intel.com

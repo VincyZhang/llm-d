@@ -14,7 +14,10 @@ spec:
         - name: modelserver
           command: ["vllm", "serve"]
           args:
-            - "Qwen/Qwen3-0.6B"
+            - "--model=Qwen/Qwen3-0.6B"
+            - "--disable-uvicorn-access-log"
+            - "--tensor-parallel-size=1"
+            - "--block-size=64"
             - "--port=8000"
             - "--dtype=float16"
             - "--disable-sliding-window"

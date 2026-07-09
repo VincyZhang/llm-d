@@ -6,16 +6,10 @@ spec:
   spec:
     devices:
       requests:
-        # Single-replica LMCache run: pin the 4 claimed GPUs to the socket-0
-        # cards (XPU 0-3 = PCI 2b/2f/3c/40, pciRoot 26/37) so this run always
-        # lands on the same NUMA-local quad regardless of scheduling order.
+        # Single-replica LMCache run: claim 4 Intel GPUs without pinning to a
+        # fixed PCI quartet so the scheduler can use any available Intel GPUs.
         - name: gpu
           exactly:
             deviceClassName: gpu.intel.com
             allocationMode: ExactCount
             count: 4
-            selectors:
-              - cel:
-                  expression: >-
-                    device.attributes["gpu.intel.com"].pciAddress in
-                    ["0000:2b:00.0","0000:2f:00.0","0000:3c:00.0","0000:40:00.0"]
