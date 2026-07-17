@@ -6,7 +6,7 @@
 #   NAMESPACE             target namespace for ALL resources (default: llm-d-optimized-baseline)
 #   WVA_TAG               WVA controller image tag override (default: unset = upstream default)
 #   OUTPUT_DIR            where to write the generated overlay (default: mktemp -d)
-#   ROUTER_CHART_VERSION  EPP router chart version (default: v0)
+#   ROUTER_CHART_VERSION  EPP router chart version (default: v0.9.0)
 
 set -euo pipefail
 
@@ -27,7 +27,7 @@ NAMESPACE="${NAMESPACE:-wva-nightly-optimized-baseline-$(printf '%04x' $RANDOM)}
 NS_HASH="$(printf '%s' "${NAMESPACE}" | sha256sum | cut -c1-8)"
 WVA_TAG="${WVA_TAG:-}"
 OUTPUT_DIR="${OUTPUT_DIR:-$(mktemp -d -t nightly-deploy-ocp.XXXXXX)}"
-ROUTER_CHART_VERSION="${ROUTER_CHART_VERSION:-v0}"
+ROUTER_CHART_VERSION="${ROUTER_CHART_VERSION:-v0.9.0}"
 
 mkdir -p "${OUTPUT_DIR}"
 
