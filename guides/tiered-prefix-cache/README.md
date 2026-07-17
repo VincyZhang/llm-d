@@ -208,6 +208,16 @@ This path uses vLLM's native `OffloadingConnector` to offload evicted KV blocks 
 > [!IMPORTANT]
 > XPU `OffloadingConnector` support is newer than the latest published `ghcr.io/llm-d/llm-d-xpu` image. Until a released image ships with it, build the vLLM XPU image locally and override the reference in [`modelserver/xpu/vllm/base/kustomization.yaml`](./modelserver/xpu/vllm/base/kustomization.yaml) (the `images:` entry — replace `newName`/`newTag` with your local image and tag).
 
+If the target machine uses a different GID, render the XPU overlay with `RENDER_GID` before applying it:
+
+```bash
+export RENDER_GID=107   # use 105 on the other machine
+
+kustomize build ${REPO_ROOT}/guides/tiered-prefix-cache/modelserver/xpu/vllm/base/ \
+  | envsubst '$RENDER_GID' \
+  | kubectl apply -n ${NAMESPACE} -f -
+```
+
 ```bash
 kubectl apply -n ${NAMESPACE} -k ${REPO_ROOT}/guides/tiered-prefix-cache/modelserver/xpu/vllm/native/cpu/base/
 ```

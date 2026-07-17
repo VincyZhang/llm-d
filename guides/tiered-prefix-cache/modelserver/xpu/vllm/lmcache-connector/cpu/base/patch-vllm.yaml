@@ -35,7 +35,7 @@ spec:
               #     print("LMCache XPU pin patch: pattern NOT FOUND ->", p)
               # PYEOF
               exec vllm serve \
-                /localdisk/HF_CACHE/Qwen3-32B \
+                Qwen/Qwen3-32B \
                 --served-model-name Qwen/Qwen3-32B \
                 --dtype bfloat16 \
                 --block-size 64 \
@@ -46,10 +46,6 @@ spec:
                 --max-num-seq 128 \
                 --uvicorn-log-level warning
           env:
-            - name: ZE_AFFINITY_MASK
-              value: "0,1,2,3"
-            - name: HF_HOME
-              value: /localdisk/HF_CACHE
             - name: HF_TOKEN
               valueFrom:
                 secretKeyRef:

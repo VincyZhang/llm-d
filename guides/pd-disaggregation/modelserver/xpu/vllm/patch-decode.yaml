@@ -7,21 +7,26 @@ spec:
   template:
     spec:
       securityContext:
-        fsGroup: 107
+        fsGroup: ${RENDER_GID}
         supplementalGroups:
-          - 107
+          - ${RENDER_GID}
       containers:
         - name: modelserver
-          command: ["vllm", "serve"]
+          securityContext:
+            privileged: true
+          command: ["/bin/bash", "-c"]
           args:
-            - "--model=Qwen/Qwen3-0.6B"
-            - "--disable-uvicorn-access-log"
-            - "--tensor-parallel-size=1"
-            - "--block-size=64"
-            - "--kv-transfer-config"
-            - '{"kv_connector":"NixlConnector", "kv_role":"kv_both", "kv_buffer_device":"cpu"}'
-            - "--max-model-len=32000"
-            - "--port=8200"
+            - |
+              source /opt/intel/oneapi/setvars.sh >/dev/null 2>&1 || true
+              exec vllm serve \
+                --model=Qwen/Qwen3-0.6B \
+                --disable-uvicorn-access-log \
+                --tensor-parallel-size=1 \
+                --block-size=64 \
+                --kv-transfer-config \
+                '{"kv_connector":"NixlConnector", "kv_role":"kv_both", "kv_buffer_device":"cpu"}' \
+                --max-model-len=32000 \
+                --port=8200
           env:
             - name: UCX_TLS
               value: "tcp"
@@ -54,6 +59,8 @@ spec:
           volumeMounts:
             - mountPath: /dev/shm
               name: shm
+            - mountPath: /dev/dri
+              name: dri
             - mountPath: /.cache
               name: torch-compile-cache
           startupProbe:
@@ -77,5 +84,9 @@ spec:
           emptyDir:
             medium: Memory
             sizeLimit: 16Gi
+        - name: dri
+          hostPath:
+            path: /dev/dri
+            type: Directory
         - name: torch-compile-cache
           emptyDir: {}

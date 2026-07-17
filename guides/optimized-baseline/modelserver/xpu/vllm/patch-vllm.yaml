@@ -7,24 +7,38 @@ spec:
   template:
     spec:
       securityContext:
-        fsGroup: 107
+        fsGroup: ${RENDER_GID}
         supplementalGroups:
-          - 107
+          - ${RENDER_GID}
       containers:
         - name: modelserver
-          command: ["vllm", "serve"]
+          securityContext:
+            privileged: true
+          command: ["/bin/bash", "-c"]
           args:
-            - "--model=Qwen/Qwen3-0.6B"
-            - "--disable-uvicorn-access-log"
-            - "--tensor-parallel-size=1"
-            - "--block-size=64"
-            - "--port=8000"
-            - "--dtype=float16"
-            - "--disable-sliding-window"
-            - "--disable-access-log-for-endpoints=/health,/metrics,/v1/models"
-            # Uncomment for distributed tracing
-            # - "--otlp-traces-endpoint=http://otel-collector:4317"
-            # - "--collect-detailed-traces=all"
+            - |
+              source /opt/intel/oneapi/setvars.sh >/dev/null 2>&1 || true
+              exec vllm serve \
+                --model=Qwen/Qwen3-0.6B \
+                --disable-uvicorn-access-log \
+                --tensor-parallel-size=1 \
+                --block-size=64 \
+                --port=8000 \
+                --dtype=float16 \
+                --disable-sliding-window \
+                --disable-access-log-for-endpoints=/health,/metrics,/v1/models
+              # Uncomment for distributed tracing
+              # exec vllm serve \
+              #   --model=Qwen/Qwen3-0.6B \
+              #   --disable-uvicorn-access-log \
+              #   --tensor-parallel-size=1 \
+              #   --block-size=64 \
+              #   --port=8000 \
+              #   --dtype=float16 \
+              #   --disable-sliding-window \
+              #   --disable-access-log-for-endpoints=/health,/metrics,/v1/models \
+              #   --otlp-traces-endpoint=http://otel-collector:4317 \
+              #   --collect-detailed-traces=all
           env:
             - name: HF_TOKEN
               valueFrom:
@@ -54,6 +68,8 @@ spec:
             claims:
               - name: intel-decode-claim
           volumeMounts:
+            - mountPath: /dev/dri
+              name: dri
             - mountPath: /.cache
               name: torch-compile-cache
             - mountPath: /.triton
@@ -77,6 +93,10 @@ spec:
         - name: intel-decode-claim
           resourceClaimTemplateName: intel-claim-template-decode
       volumes:
+        - name: dri
+          hostPath:
+            path: /dev/dri
+            type: Directory
         - name: torch-compile-cache
           emptyDir: {}
         - name: triton-cache

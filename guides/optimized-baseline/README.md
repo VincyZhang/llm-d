@@ -139,6 +139,20 @@ export INFRA_PROVIDER=base # base | gke (GPU only, omit for other accelerators)
 kubectl apply -n ${NAMESPACE} -k ${REPO_ROOT}/guides/${GUIDE_NAME}/modelserver/${ACCELERATOR_TYPE}/${MODEL_SERVER}/${INFRA_PROVIDER}/
 ```
 
+When deploying the Intel XPU overlay, render the same Kustomize output with `RENDER_GID` first so the pod security context matches the target machine:
+
+```bash
+export ACCELERATOR_TYPE=xpu
+export MODEL_SERVER=vllm
+export RENDER_GID=107   # use 105 on the other machine
+
+kustomize build ${REPO_ROOT}/guides/${GUIDE_NAME}/modelserver/xpu/vllm/ \
+  | envsubst '$RENDER_GID' \
+  | kubectl apply -n ${NAMESPACE} -f -
+```
+
+The Intel XPU overlay lives at `modelserver/xpu/vllm/`, so the build path above resolves to that directory.
+
 > [!NOTE]
 > The `INFRA_PROVIDER` suffix (`base` or `gke`) only applies to GPU. For other accelerators, use the path directly:
 > `kubectl apply -n ${NAMESPACE} -k ${REPO_ROOT}/guides/${GUIDE_NAME}/modelserver/${ACCELERATOR_TYPE}/${MODEL_SERVER}/`

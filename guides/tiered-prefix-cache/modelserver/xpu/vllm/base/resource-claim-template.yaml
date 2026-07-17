@@ -13,8 +13,8 @@ spec:
             deviceClassName: gpu.intel.com
             allocationMode: ExactCount
             count: 4
-            selectors:
-              - cel:
-                  expression: >-
-                    device.attributes["gpu.intel.com"].pciAddress in
-                    ["0000:2b:00.0","0000:2f:00.0","0000:3c:00.0","0000:40:00.0"]
+            #selectors:
+            #  - cel:
+            #      expression: >-
+            #        device.attributes["gpu.intel.com"].pciAddress in
+            #        ["0000:2b:00.0","0000:2f:00.0","0000:3c:00.0","0000:40:00.0"]

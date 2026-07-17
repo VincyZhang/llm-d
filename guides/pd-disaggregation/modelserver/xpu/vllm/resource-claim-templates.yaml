@@ -13,11 +13,11 @@ spec:
             deviceClassName: gpu.intel.com
             allocationMode: ExactCount
             count: 1
-            selectors:
-              - cel:
-                  expression: >-
-                    device.attributes["gpu.intel.com"].pciAddress in
-                    ["0000:3c:00.0"]
+            #selectors:
+            #  - cel:
+            #      expression: >-
+            #        device.attributes["gpu.intel.com"].pciAddress in
+            #        ["0000:3c:00.0"]
 ---
 apiVersion: resource.k8s.io/v1
 kind: ResourceClaimTemplate
@@ -34,8 +34,8 @@ spec:
             deviceClassName: gpu.intel.com
             count: 1
             allocationMode: ExactCount
-            selectors:
-              - cel:
-                  expression: >-
-                    device.attributes["gpu.intel.com"].pciAddress in
-                    ["0000:40:00.0"]
+            #selectors:
+            #  - cel:
+            #      expression: >-
+            #        device.attributes["gpu.intel.com"].pciAddress in
+            #        ["0000:40:00.0"]
